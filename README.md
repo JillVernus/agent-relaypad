@@ -184,6 +184,30 @@ stores the returned Claude `session_id` as `.agent-relaypad/runtimes/cc.json`.
 By default it uses `opus[1m]`, not plain `opus`. Pass `--model` only when you
 want a specific Claude model for that invocation.
 
+Invoke multiple reviewers directly from the owner side:
+
+```bash
+python agent-relaypad/scripts/relaypad_driver.py invoke-many \
+  --root /path/to/project \
+  --drivers agy,cc \
+  --prompt-file /tmp/review-prompt.md \
+  --timeout 1000
+```
+
+The v1.3 parallel driver starts every requested reviewer before waiting for any
+one reviewer to finish. It passes the same prompt through each process's
+standard input, drains stdout and stderr while reviewers run, and reports each
+reviewer's completion, timeout, exit code, response file status, and parsed
+current-round response status. Direct owner-launched reviews wait on subprocess
+completion instead of frequent relaypad polling.
+
+The default reviewer timeout is 1000 seconds. Agy also receives
+`--print-timeout 1000s`, and both Agy and Claude Code have Python process-level
+timeout protection. If a reviewer finishes early, the owner should keep waiting
+for slower reviewers. If one reviewer requests changes early, collect remaining
+reviewer feedback before reconciling. If one reviewer times out, leave the
+review active for an explicit owner decision.
+
 ## Typical Agent Workflow
 
 1. Codex creates a review request after planning or implementation.
@@ -296,6 +320,6 @@ PYTHONPATH=agent-relaypad/scripts python -m unittest discover -s agent-relaypad/
 Expected result:
 
 ```text
-Ran 48 tests
+Ran 89 tests
 OK
 ```

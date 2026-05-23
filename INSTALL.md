@@ -197,7 +197,7 @@ PYTHONPATH=agent-relaypad/scripts python -m unittest discover -s agent-relaypad/
 Expected:
 
 ```text
-Ran 66 tests
+Ran 89 tests
 OK
 ```
 

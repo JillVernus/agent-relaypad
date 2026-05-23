@@ -63,6 +63,16 @@ Never infer identity from owner, missing responses, or recently edited files.
 - Prefer an explicit or stored Agy conversation ID.
 - If the user asks Codex to invoke Claude Code directly, use the same driver
   script with `--driver cc`.
+- If the user asks Codex to invoke Agy and Claude Code at the same time, use
+  `python agent-relaypad/scripts/relaypad_driver.py invoke-many --drivers agy,cc`.
+- Direct owner-launched parallel reviews wait on subprocess completion, not
+  frequent relaypad polling. If manual or external polling is needed later, use
+  a practical interval such as 60 seconds.
+- The default reviewer timeout is 1000 seconds. Do not archive automatically on
+  partial timeout; leave the active review for an explicit owner decision.
+- If one reviewer finishes early or requests changes early, keep waiting for the
+  remaining reviewers by default so the owner can reconcile all feedback
+  together.
 - For Claude Code, prefer the stored Claude session ID. If none exists, the
   driver starts a new Claude session and stores the returned `session_id`.
 - For Claude Code, use `--model` only when the user requests it; otherwise the
