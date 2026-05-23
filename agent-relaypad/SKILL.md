@@ -66,9 +66,15 @@ Never infer identity from owner, missing responses, or recently edited files.
   script with `--driver cc`.
 - If the user asks Codex to invoke Agy and Claude Code at the same time, use
   `python agent-relaypad/scripts/relaypad_driver.py invoke-many --drivers agy,cc`.
-- Direct owner-launched parallel reviews wait on subprocess completion, not
-  frequent relaypad polling. If manual or external polling is needed later, use
-  a practical interval such as 60 seconds.
+- Direct owner-launched reviews wait silently on the original driver
+  subprocess until it exits or reaches the configured timeout. Do not send
+  periodic waiting updates, do not run relaypad polling loops, do not search the
+  filesystem for reviewer output, and do not re-invoke reviewers while the
+  subprocess is still running. If manual or external polling is needed later,
+  use a practical interval such as 60 seconds.
+- During direct driver invocation, the driver adds absolute project and relaypad
+  paths to the reviewer prompt. Reviewers must write to that absolute
+  `responses/<agent-id>.md` path, not to a scratch workspace relaypad.
 - The default reviewer timeout is 1000 seconds. Do not archive automatically on
   partial timeout; leave the active review for an explicit owner decision.
 - If one reviewer finishes early or requests changes early, keep waiting for the

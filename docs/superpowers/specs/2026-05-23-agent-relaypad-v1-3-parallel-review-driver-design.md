@@ -56,7 +56,10 @@ python agent-relaypad/scripts/relaypad_driver.py invoke-many \
 preferred for realistic review prompts.
 
 The implementation should read `--prompt-file` once before spawning reviewer
-subprocesses, then pass the same prompt text to every requested driver.
+subprocesses, then pass that user prompt to every requested driver. When an
+active relaypad review exists, the driver may prepend per-driver absolute
+project, review, and response-file paths so reviewers write to the real
+workspace rather than a runtime scratch directory.
 
 ## Behavior
 
@@ -103,8 +106,9 @@ If one reviewer times out:
 
 ## Timeouts and Polling
 
-Direct owner-launched reviews should wait on subprocess completion instead of
-using frequent relaypad polling.
+Direct owner-launched reviews should wait silently on the original subprocess
+completion instead of using frequent relaypad polling or sending periodic
+waiting updates.
 
 Default reviewer timeout:
 
@@ -121,6 +125,7 @@ practical interval:
 
 The 60 second interval is only for workflows where the owner did not launch the
 reviewer process and therefore cannot observe subprocess completion directly.
+It does not apply while a direct driver subprocess is already running.
 
 ## Driver Timeout Details
 
@@ -200,7 +205,8 @@ Add unit tests for:
 - Agy receives both `--print-timeout 1000s` and process-level timeout protection.
 - Claude Code still defaults to exactly `opus[1m]`.
 - Final response inspection reports each reviewer's response file status.
-- `--prompt-file` reads prompt text once and passes it to every driver.
+- `--prompt-file` reads prompt text once and passes it to every driver with any
+  required per-driver absolute relaypad path context.
 - Unsupported driver names in `--drivers` are reported cleanly without
   launching any reviewers.
 - Overall `status` is `completed` only when every reviewer process completes,

@@ -53,8 +53,8 @@ Result: 89 tests passed.
 ## Review Focus
 
 - Confirm `invoke-many` truly launches all requested reviewers before waiting.
-- Confirm prompt text is delivered to all reviewer stdin handles before blocking
-  waits.
+- Confirm prompt text, including absolute relaypad path context when active, is
+  delivered to all reviewer stdin handles before blocking waits.
 - Confirm stdout/stderr are drained while processes run.
 - Confirm timeout handling leaves active review state intact.
 - Confirm `review_status` is computed from current-round response headers.

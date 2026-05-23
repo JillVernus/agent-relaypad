@@ -360,6 +360,25 @@ class RelaypadDriverTests(unittest.TestCase):
 
             self.assertEqual(relaypad_driver.compute_review_status(root), "waiting_for_review")
 
+    def test_build_driver_prompt_includes_absolute_relaypad_paths_for_active_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            review_dir = self.write_active_review(root, round_number=2, reviewers=("agy",))
+
+            prompt = relaypad_driver.build_driver_prompt(root, "agy", "review please")
+
+            self.assertIn(f"Project root: {root.resolve()}", prompt)
+            self.assertIn(f"Review directory: {review_dir.resolve()}", prompt)
+            self.assertIn(f"Response file: {(review_dir / 'responses' / 'agy.md').resolve()}", prompt)
+            self.assertIn("Do not create or use .agent-relaypad in a scratch workspace", prompt)
+            self.assertTrue(prompt.endswith("review please"))
+
+    def test_build_driver_prompt_leaves_prompt_plain_without_active_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prompt = relaypad_driver.build_driver_prompt(Path(tmp), "agy", "review please")
+
+            self.assertEqual(prompt, "review please")
+
     def test_invoke_many_starts_all_drivers_before_waiting(self):
         events = []
         FakeProcess = self.fake_process_factory(events)

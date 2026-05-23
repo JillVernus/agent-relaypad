@@ -51,6 +51,29 @@ def load_prompt(prompt=None, prompt_file=None):
     return prompt
 
 
+def build_driver_prompt(root, driver, prompt):
+    context = active_review_context(root)
+    if context is None:
+        return prompt
+
+    root = Path(root).resolve()
+    review_dir = context["review_dir"].resolve()
+    response_path = review_dir / "responses" / f"{driver}.md"
+    request_path = review_dir / "request.md"
+    status_path = review_dir / "status.json"
+    return (
+        "Agent Relaypad workspace context:\n"
+        f"- Project root: {root}\n"
+        f"- Review directory: {review_dir}\n"
+        f"- Request file: {request_path}\n"
+        f"- Status file: {status_path}\n"
+        f"- Response file: {response_path}\n"
+        "- Write your relaypad response only to the absolute Response file path above.\n"
+        "- Do not create or use .agent-relaypad in a scratch workspace.\n\n"
+        f"{prompt}"
+    )
+
+
 def parse_response_headers(path):
     headers = {}
     for line in Path(path).read_text(encoding="utf-8").splitlines():
@@ -226,16 +249,17 @@ def invoke_agy(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_T
         return resolved
 
     command = build_agy_command(resolved["conversation_id"], timeout)
+    driver_prompt = build_driver_prompt(root, "agy", prompt)
     if dry_run:
         return {
             "status": "dry_run",
             "driver": "agy",
             "command": command,
-            "stdin": prompt,
+            "stdin": driver_prompt,
         }
 
     run = runner or subprocess.run
-    completed = run(command, input=prompt, text=True, capture_output=True, cwd=str(root), timeout=timeout)
+    completed = run(command, input=driver_prompt, text=True, capture_output=True, cwd=str(root), timeout=timeout)
     return {
         "status": "invoked",
         "driver": "agy",
@@ -271,12 +295,13 @@ def invoke_cc(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_TI
     resolved = resolve_optional_cc_conversation_id(root, explicit_id=conversation_id)
     requested_model = model or DEFAULT_CC_MODEL
     command = build_cc_command(resolved["conversation_id"], requested_model)
+    driver_prompt = build_driver_prompt(root, "cc", prompt)
 
     result = {
         "status": "dry_run" if dry_run else "invoked",
         "driver": "cc",
         "command": command,
-        "stdin": prompt,
+        "stdin": driver_prompt,
     }
     if resolved["conversation_id"]:
         result["conversation_id"] = resolved["conversation_id"]
@@ -287,7 +312,7 @@ def invoke_cc(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_TI
     run = runner or subprocess.run
     completed = run(
         command,
-        input=prompt,
+        input=driver_prompt,
         text=True,
         capture_output=True,
         cwd=str(root),
@@ -498,7 +523,7 @@ def invoke_many(
         )
 
     for entry in entries:
-        deliver_prompt(entry["process"], prompt)
+        deliver_prompt(entry["process"], build_driver_prompt(root, entry["driver"], prompt))
 
     reader_threads = []
     for entry in entries:
