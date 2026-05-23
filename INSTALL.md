@@ -134,6 +134,7 @@ Then verify:
 
 ```bash
 python ~/.codex/skills/agent-relaypad/scripts/relaypad.py --help
+python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver agy --prompt "hello" --dry-run
 python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver agy --prompt "hello" --conversation-id test-conversation --dry-run
 python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver cc --prompt "hello" --dry-run
 ```
@@ -166,6 +167,7 @@ Then verify:
 
 ```bash
 python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad.py" --help
+python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad_driver.py" invoke --root . --driver agy --prompt "hello" --dry-run
 python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad_driver.py" invoke --root . --driver agy --prompt "hello" --conversation-id test-conversation --dry-run
 python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad_driver.py" invoke --root . --driver cc --prompt "hello" --dry-run
 ```
@@ -197,7 +199,7 @@ PYTHONPATH=agent-relaypad/scripts python -m unittest discover -s agent-relaypad/
 Expected:
 
 ```text
-Ran 89 tests
+Ran 92 tests
 OK
 ```
 
@@ -207,6 +209,7 @@ For Codex:
 
 ```bash
 python ~/.codex/skills/agent-relaypad/scripts/relaypad.py --help
+python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver agy --prompt "hello" --dry-run
 python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver agy --prompt "hello" --conversation-id test-conversation --dry-run
 python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver cc --prompt "hello" --dry-run
 ```

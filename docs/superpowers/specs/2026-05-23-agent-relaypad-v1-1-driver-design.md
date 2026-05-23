@@ -120,8 +120,8 @@ Conversation ID resolution order:
    ```text
    ~/.gemini/antigravity-cli/cache/last_conversations.json
    ```
-4. If none is found, return a JSON error telling the user to run Agy once or
-   pass `--conversation-id`.
+4. If none is found, invoke Agy without `--conversation` so it starts a new
+   session.
 
 Do not use `agy --continue` because it may resume the wrong conversation.
 Do not pass the prompt as a positional argument. Live dogfood testing showed

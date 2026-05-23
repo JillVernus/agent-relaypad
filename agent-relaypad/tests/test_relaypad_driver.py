@@ -179,21 +179,26 @@ class RelaypadDriverTests(unittest.TestCase):
             self.assertEqual(result["conversation_id"], "cache-1")
             self.assertEqual(result["conversation_source"], "antigravity_last_conversations")
 
-    def test_resolve_conversation_id_handles_unreadable_cache(self):
+    def test_resolve_conversation_id_starts_new_agy_session_when_cache_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             missing = root / "missing.json"
 
             result = relaypad_driver.resolve_conversation_id(root, "agy", agy_cache_path=missing)
 
-            self.assertEqual(result["status"], "error")
-            self.assertIn("conversation ID", result["error"])
-            self.assertIn("--conversation-id", result["next_step"])
+            self.assertEqual(result["status"], "new_session")
+            self.assertIsNone(result["conversation_id"])
+            self.assertEqual(result["conversation_source"], "new_agy_session")
 
     def test_build_agy_command_uses_conversation_and_no_prompt_argument(self):
         command = relaypad_driver.build_agy_command("conv-1", timeout=300)
 
         self.assertEqual(command, ["agy", "--print", "--print-timeout", "300s", "--conversation", "conv-1"])
+
+    def test_build_agy_command_omits_conversation_for_new_session(self):
+        command = relaypad_driver.build_agy_command(None, timeout=300)
+
+        self.assertEqual(command, ["agy", "--print", "--print-timeout", "300s"])
 
     def test_invoke_default_timeout_is_1000_for_agy_dry_run(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -249,6 +254,20 @@ class RelaypadDriverTests(unittest.TestCase):
             self.assertEqual(result["status"], "dry_run")
             self.assertEqual(result["stdin"], "hello")
             self.assertNotIn("hello", result["command"])
+
+    def test_agy_dry_run_starts_new_session_without_conversation_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = relaypad_driver.invoke_driver(
+                root=Path(tmp),
+                driver="agy",
+                prompt="hello",
+                dry_run=True,
+            )
+
+            self.assertEqual(result["status"], "dry_run")
+            self.assertEqual(result["driver"], "agy")
+            self.assertNotIn("--conversation", result["command"])
+            self.assertEqual(result["stdin"], "hello")
 
     def test_model_override_is_unsupported_without_invoking(self):
         calls = []
@@ -494,6 +513,24 @@ class RelaypadDriverTests(unittest.TestCase):
             self.assertEqual(result["status"], "completed")
             self.assertEqual(metadata["conversation_id"], "conv-1")
             self.assertEqual(metadata["last_exit_code"], 0)
+
+    def test_invoke_many_starts_new_agy_session_without_conversation_id(self):
+        events = []
+        launched_commands = []
+        FakeProcess = self.fake_process_factory(events)
+
+        def launcher(command, **kwargs):
+            launched_commands.append(command)
+            return FakeProcess(self.driver_from_command(command))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            result = relaypad_driver.invoke_many(root=root, drivers=["agy"], prompt="review", launcher=launcher)
+
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(launched_commands[0], ["agy", "--print", "--print-timeout", "1000s"])
+            self.assertFalse((root / ".agent-relaypad" / "runtimes" / "agy.json").exists())
 
     def test_invoke_many_persists_cc_session_id_metadata_after_completion(self):
         events = []

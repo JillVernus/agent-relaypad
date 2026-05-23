@@ -170,6 +170,13 @@ def resolve_conversation_id(root, driver, explicit_id=None, agy_cache_path=None)
                 "conversation_source": "antigravity_last_conversations",
             }
 
+    if driver == "agy":
+        return {
+            "status": "new_session",
+            "conversation_id": None,
+            "conversation_source": "new_agy_session",
+        }
+
     return {
         "status": "error",
         "driver": driver,
@@ -179,7 +186,10 @@ def resolve_conversation_id(root, driver, explicit_id=None, agy_cache_path=None)
 
 
 def build_agy_command(conversation_id, timeout):
-    return ["agy", "--print", "--print-timeout", f"{int(timeout)}s", "--conversation", conversation_id]
+    command = ["agy", "--print", "--print-timeout", f"{int(timeout)}s"]
+    if conversation_id:
+        command.extend(["--conversation", conversation_id])
+    return command
 
 
 def build_cc_command(conversation_id=None, model=None):
@@ -212,7 +222,7 @@ def invoke_agy(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_T
         return unsupported_model_result("agy")
 
     resolved = resolve_conversation_id(root, "agy", explicit_id=conversation_id)
-    if resolved.get("status") != "resolved":
+    if resolved.get("status") not in {"resolved", "new_session"}:
         return resolved
 
     command = build_agy_command(resolved["conversation_id"], timeout)
@@ -226,26 +236,13 @@ def invoke_agy(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_T
 
     run = runner or subprocess.run
     completed = run(command, input=prompt, text=True, capture_output=True, cwd=str(root), timeout=timeout)
-    metadata_path = write_runtime_metadata(
-        root,
-        "agy",
-        {
-            "version": VERSION,
-            "driver": "agy",
-            "conversation_id": resolved["conversation_id"],
-            "conversation_source": resolved["conversation_source"],
-            "last_invoked_at": utc_now(),
-            "last_exit_code": completed.returncode,
-        },
-    )
     return {
         "status": "invoked",
         "driver": "agy",
-        "conversation_id": resolved["conversation_id"],
         "exit_code": completed.returncode,
         "stdout": completed.stdout,
         "stderr": completed.stderr,
-        "metadata_path": str(metadata_path),
+        **persist_agy_metadata(root, resolved, completed.returncode),
     }
 
 
@@ -345,7 +342,7 @@ def build_driver_invocation(root, driver, timeout=DEFAULT_TIMEOUT, conversation_
         if model:
             return unsupported_model_result("agy")
         resolved = resolve_conversation_id(root, "agy", explicit_id=conversation_id)
-        if resolved.get("status") != "resolved":
+        if resolved.get("status") not in {"resolved", "new_session"}:
             return resolved
         return {
             "status": "ready",
@@ -398,21 +395,33 @@ def terminate_process(process):
             pass
 
 
+def persist_agy_metadata(root, resolved, exit_code):
+    if not resolved.get("conversation_id"):
+        return {}
+    metadata_path = write_runtime_metadata(
+        root,
+        "agy",
+        {
+            "version": VERSION,
+            "driver": "agy",
+            "conversation_id": resolved["conversation_id"],
+            "conversation_source": resolved["conversation_source"],
+            "last_invoked_at": utc_now(),
+            "last_exit_code": exit_code,
+        },
+    )
+    return {
+        "conversation_id": resolved["conversation_id"],
+        "metadata_path": str(metadata_path),
+    }
+
+
 def persist_completed_metadata(root, invocation, stdout, exit_code):
     driver = invocation["driver"]
     if driver == "agy":
-        return write_runtime_metadata(
-            root,
-            "agy",
-            {
-                "version": VERSION,
-                "driver": "agy",
-                "conversation_id": invocation["conversation_id"],
-                "conversation_source": invocation["conversation_source"],
-                "last_invoked_at": utc_now(),
-                "last_exit_code": exit_code,
-            },
-        )
+        metadata = persist_agy_metadata(root, invocation, exit_code)
+        metadata_path = metadata.get("metadata_path")
+        return Path(metadata_path) if metadata_path else None
 
     session_id = parse_cc_session_id(stdout)
     metadata_session_id = session_id or invocation.get("conversation_id")

@@ -60,7 +60,8 @@ Never infer identity from owner, missing responses, or recently edited files.
 
 - Manual relaypad review remains the default workflow.
 - If the user asks Codex to invoke Agy directly, use `python agent-relaypad/scripts/relaypad_driver.py invoke`.
-- Prefer an explicit or stored Agy conversation ID.
+- Prefer an explicit or stored Agy conversation ID. If none exists, invoke Agy
+  without `--conversation` so it starts a new session.
 - If the user asks Codex to invoke Claude Code directly, use the same driver
   script with `--driver cc`.
 - If the user asks Codex to invoke Agy and Claude Code at the same time, use
