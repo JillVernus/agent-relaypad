@@ -329,11 +329,20 @@ A reviewing agent:
 The owner agent:
 
 1. Reads all response files.
-2. Applies changes to the plan or implementation outside `.agent-relaypad/`.
-3. Creates or updates `decisions.md` with answers, accepted decisions, and a
+2. Evaluates each material reviewer point against codebase reality, user
+   intent, and current project constraints. Reviewer feedback is advisory, not
+   automatically authoritative.
+3. Summarizes reviewer feedback for the user with the owner's own judgment for
+   each material point: accepted, rejected, modified, or needs discussion.
+4. If the owner disagrees with a reviewer point, explains the technical reason
+   and asks the user whether to send that disagreement and rationale back to the
+   reviewer for another discussion round.
+5. Applies accepted feedback to the plan or implementation outside
+   `.agent-relaypad/`.
+6. Creates or updates `decisions.md` with answers, accepted decisions, and a
    "Changes Since Last Round" section.
-4. Updates `status.json`.
-5. Requests another review round if needed by incrementing `round` and moving
+7. Updates `status.json`.
+8. Requests another review round if needed by incrementing `round` and moving
    status back to `waiting_for_review`.
 
 `request.md` is immutable after creation. It is the original review snapshot.

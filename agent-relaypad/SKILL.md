@@ -47,6 +47,15 @@ Never infer identity from owner, missing responses, or recently edited files.
 
 ## Owner Finalization
 
+- Reviewer feedback is advisory, not automatically authoritative. The owner
+  must evaluate each reviewer point against the codebase, user intent, and
+  current project constraints before applying it.
+- When summarizing reviewer feedback to the user, include the owner's own
+  judgment for each material point: accepted, rejected, modified, or needs
+  discussion. Do not only summarize reviewer comments.
+- If the owner disagrees with any reviewer point, explain the technical reason
+  and ask the user whether to send that disagreement and rationale back to the
+  reviewer for another discussion round.
 - On `changes_requested`, apply accepted feedback to the reviewed plan or
   implementation outside `.agent-relaypad/`, record decisions, and start another
   round with `--next-round` when reviewer confirmation is needed.
