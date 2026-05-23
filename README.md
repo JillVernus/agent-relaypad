@@ -35,6 +35,17 @@ does the deterministic file operations.
 Install the whole `agent-relaypad/` folder into each agent's user skills
 directory.
 
+Recommended agent-driven install or update:
+
+```text
+Read INSTALL.md and install or update the agent-relaypad skill for your own
+runtime. First identify the correct user skills directory for this agent. If
+you cannot identify it confidently, stop and ask me for the target path. Remove
+the old installed agent-memo-review skill folder if it exists. Do not delete
+any project-local .agent-relaypad folders. Verify the installed helper with
+--help after copying.
+```
+
 Common Codex install location:
 
 ```bash

@@ -51,6 +51,15 @@ Keep the final folder name exactly:
 agent-relaypad
 ```
 
+If an older installed folder exists under the previous name, remove only that
+installed skill folder during migration:
+
+```text
+agent-memo-review
+```
+
+Do not remove project-local review folders while migrating installed skills.
+
 If the target directory is not known, stop and ask:
 
 ```text
@@ -65,6 +74,7 @@ If the Codex target folder does not exist:
 
 ```bash
 mkdir -p ~/.codex/skills
+rm -rf ~/.codex/skills/agent-memo-review
 cp -R agent-relaypad ~/.codex/skills/
 ```
 
@@ -89,6 +99,7 @@ Then install:
 
 ```bash
 mkdir -p "$TARGET_SKILLS_DIR"
+rm -rf "$TARGET_SKILLS_DIR/agent-memo-review"
 cp -R agent-relaypad "$TARGET_SKILLS_DIR/"
 ```
 
@@ -111,6 +122,7 @@ the source folder.
 
 ```bash
 rm -rf ~/.codex/skills/agent-relaypad
+rm -rf ~/.codex/skills/agent-memo-review
 cp -R agent-relaypad ~/.codex/skills/
 ```
 
@@ -140,6 +152,7 @@ Then update:
 
 ```bash
 rm -rf "$TARGET_SKILLS_DIR/agent-relaypad"
+rm -rf "$TARGET_SKILLS_DIR/agent-memo-review"
 cp -R agent-relaypad "$TARGET_SKILLS_DIR/"
 ```
 
@@ -154,6 +167,8 @@ Restart or reload that agent after update.
 ## Safe Update Notes
 
 - It is safe to replace the installed `agent-relaypad/` skill folder.
+- It is safe to remove the old installed `agent-memo-review/` skill folder
+  during migration to the new name.
 - Do not delete project-local `.agent-relaypad/` folders during install or update.
 - Do not overwrite a project's `.agent-relaypad/.gitignore`; the helper preserves
   existing project overrides.
@@ -220,8 +235,9 @@ Give the agent this instruction:
 ```text
 Read INSTALL.md and install or update the agent-relaypad skill for your own
 runtime. First identify the correct user skills directory for this agent. If
-you cannot identify it confidently, stop and ask me for the target path. Do not
-delete any project-local .agent-relaypad folders. Verify the installed helper with
+you cannot identify it confidently, stop and ask me for the target path. Remove
+the old installed agent-memo-review skill folder if it exists. Do not delete
+any project-local .agent-relaypad folders. Verify the installed helper with
 --help after copying.
 ```
 
