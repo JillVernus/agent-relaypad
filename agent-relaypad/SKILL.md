@@ -56,6 +56,16 @@ Never infer identity from owner, missing responses, or recently edited files.
 - On approved implementation reviews, archive a concise final result describing
   what was approved, verification evidence, and known follow-up.
 
+## Optional Driver Invocation
+
+- Manual relaypad review remains the default workflow.
+- If the user asks Codex to invoke Agy directly, use `python agent-relaypad/scripts/relaypad_driver.py invoke`.
+- Prefer an explicit or stored Agy conversation ID.
+- Do not request an Agy model override in v1.1; the driver returns unsupported
+  unless Agy exposes a safe per-invocation model flag.
+- After invoking, inspect `.agent-relaypad/` review state before summarizing
+  success.
+
 ## Interpreting Output
 
 - Run the helper and read its JSON output before responding.

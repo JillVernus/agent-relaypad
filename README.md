@@ -18,7 +18,9 @@ agent-relaypad/
   SKILL.md
   agents/openai.yaml
   scripts/relaypad.py
+  scripts/relaypad_driver.py
   tests/test_relaypad.py
+  tests/test_relaypad_driver.py
 ```
 
 The skill instructions tell agents how to use the workflow. The Python helper
@@ -132,6 +134,31 @@ For planning reviews, `/tmp/final.md` should be the approved plan itself or a
 concise pointer to the approved project plan/spec file. The owner should update
 the real plan/spec outside `.agent-relaypad/` before archiving.
 
+Invoke Agy directly, when you already know the Agy conversation ID:
+
+```bash
+python agent-relaypad/scripts/relaypad_driver.py invoke \
+  --root /path/to/project \
+  --driver agy \
+  --conversation-id 7f6f3fc1-2fda-4b8c-8d1f-1cec82b125bf \
+  --prompt "Use agent-relaypad. Check the active review as agy and respond."
+```
+
+Preview the command without invoking Agy:
+
+```bash
+python agent-relaypad/scripts/relaypad_driver.py invoke \
+  --root /path/to/project \
+  --driver agy \
+  --conversation-id test-conversation \
+  --prompt "hello" \
+  --dry-run
+```
+
+The v1.1 Agy driver passes prompts through standard input and always uses
+`--conversation`; it does not use `--continue`. Agy model override is not
+supported unless Agy exposes a safe per-invocation model flag.
+
 ## Typical Agent Workflow
 
 1. Codex creates a review request after planning or implementation.
@@ -181,6 +208,7 @@ By default, `.agent-relaypad/.gitignore` contains:
 ```gitignore
 active/
 state.json
+runtimes/
 ```
 
 This keeps active local state out of git while allowing archived review records

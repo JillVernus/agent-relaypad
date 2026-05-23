@@ -28,7 +28,7 @@ class AgentRelaypadTests(unittest.TestCase):
                 json.loads((memo / "state.json").read_text(encoding="utf-8")),
                 {"version": 1, "active_review_id": None, "updated_at": result["updated_at"]},
             )
-            self.assertEqual((memo / ".gitignore").read_text(encoding="utf-8"), "active/\nstate.json\n")
+            self.assertEqual((memo / ".gitignore").read_text(encoding="utf-8"), "active/\nstate.json\nruntimes/\n")
 
     def test_init_does_not_overwrite_existing_gitignore_override(self):
         with tempfile.TemporaryDirectory() as tmp:

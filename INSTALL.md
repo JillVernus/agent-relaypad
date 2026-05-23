@@ -18,7 +18,9 @@ agent-relaypad/
   SKILL.md
   agents/openai.yaml
   scripts/relaypad.py
+  scripts/relaypad_driver.py
   tests/test_relaypad.py
+  tests/test_relaypad_driver.py
 ```
 
 Do not copy only `SKILL.md`; the helper script is required.
@@ -83,6 +85,7 @@ Then verify:
 ```bash
 test -f ~/.codex/skills/agent-relaypad/SKILL.md
 test -f ~/.codex/skills/agent-relaypad/scripts/relaypad.py
+test -f ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py
 ```
 
 Restart or reload the agent after install.
@@ -108,6 +111,7 @@ Then verify:
 ```bash
 test -f "$TARGET_SKILLS_DIR/agent-relaypad/SKILL.md"
 test -f "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad.py"
+test -f "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad_driver.py"
 python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad.py" --help
 ```
 
@@ -130,6 +134,7 @@ Then verify:
 
 ```bash
 python ~/.codex/skills/agent-relaypad/scripts/relaypad.py --help
+python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver agy --prompt "hello" --conversation-id test-conversation --dry-run
 ```
 
 Expected command list:
@@ -160,6 +165,7 @@ Then verify:
 
 ```bash
 python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad.py" --help
+python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad_driver.py" invoke --root . --driver agy --prompt "hello" --conversation-id test-conversation --dry-run
 ```
 
 Restart or reload that agent after update.
@@ -199,6 +205,7 @@ For Codex:
 
 ```bash
 python ~/.codex/skills/agent-relaypad/scripts/relaypad.py --help
+python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver agy --prompt "hello" --conversation-id test-conversation --dry-run
 ```
 
 For another agent, replace `~/.codex/skills` with that agent's skills path.

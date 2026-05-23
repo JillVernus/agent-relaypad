@@ -130,7 +130,7 @@ def init_relaypad(root):
     (memo / "archive").mkdir(parents=True, exist_ok=True)
     gitignore_path = memo / ".gitignore"
     if not gitignore_path.exists():
-        gitignore_path.write_text("active/\nstate.json\n", encoding="utf-8")
+        gitignore_path.write_text("active/\nstate.json\nruntimes/\n", encoding="utf-8")
     state_path = memo / "state.json"
     if state_path.exists():
         state = read_json(state_path)
