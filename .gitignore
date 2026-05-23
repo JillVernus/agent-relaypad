@@ -1,6 +1,6 @@
 .ace-tool/
 .antigravitycli/
-.agent_memo/
+.agent-relaypad/
 __pycache__/
 *.py[cod]
 *$py.class

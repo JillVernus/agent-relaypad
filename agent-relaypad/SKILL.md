@@ -1,21 +1,21 @@
 ---
-name: agent-memo-review
-description: Use when coordinating plan reviews or implementation reviews between Codex, Claude Code, Antigravity CLI, or other agents through a project-local .agent_memo folder.
+name: agent-relaypad
+description: Use when coordinating plan reviews or implementation reviews between Codex, Claude Code, Antigravity CLI, or other agents through a project-local .agent-relaypad folder.
 ---
 
-# Agent Memo Review
+# Agent Relaypad
 
 Use this skill to create, check, review, reconcile, or archive one active cross-agent review in the current project.
 
 ## Core Rules
 
-- Use `.agent_memo/` in the project root.
+- Use `.agent-relaypad/` in the project root.
 - Version 1 supports one active review at a time.
 - Each reviewer writes only `responses/<agent-id>.md`.
 - `request.md` is immutable after creation.
 - `final.md` is the approved result and must exist before archive.
 - For planning reviews, the owner should update the real plan/spec file outside
-  `.agent_memo/` before archiving, then archive that approved plan as
+  `.agent-relaypad/` before archiving, then archive that approved plan as
   `final.md` or as a concise pointer to the approved plan file.
 - If agent identity is unclear, ask the user instead of guessing.
 
@@ -32,23 +32,23 @@ Never infer identity from owner, missing responses, or recently edited files.
 
 ## Common Intents
 
-- Initialize memo state:
-  `python agent-memo-review/scripts/agent_memo.py init --root .`
+- Initialize relaypad state:
+  `python agent-relaypad/scripts/relaypad.py init --root .`
 - Create review:
-  `python agent-memo-review/scripts/agent_memo.py create --root . --owner codex --phase planning --topic "auth flow" --reviewers agy,cc --artifact-file docs/plan.md`
+  `python agent-relaypad/scripts/relaypad.py create --root . --owner codex --phase planning --topic "auth flow" --reviewers agy,cc --artifact-file docs/plan.md`
 - Check review:
-  `python agent-memo-review/scripts/agent_memo.py check --root . --agent agy`
+  `python agent-relaypad/scripts/relaypad.py check --root . --agent agy`
 - Write feedback:
-  `python agent-memo-review/scripts/agent_memo.py respond --root . --agent agy --status approved --body-file /tmp/review.md`
+  `python agent-relaypad/scripts/relaypad.py respond --root . --agent agy --status approved --body-file /tmp/review.md`
 - Reconcile feedback:
-  `python agent-memo-review/scripts/agent_memo.py reconcile --root . --owner codex --decisions-file /tmp/decisions.md [--next-round]`
+  `python agent-relaypad/scripts/relaypad.py reconcile --root . --owner codex --decisions-file /tmp/decisions.md [--next-round]`
 - Archive review:
-  `python agent-memo-review/scripts/agent_memo.py archive --root . --owner codex --final-file /tmp/final.md`
+  `python agent-relaypad/scripts/relaypad.py archive --root . --owner codex --final-file /tmp/final.md`
 
 ## Owner Finalization
 
 - On `changes_requested`, apply accepted feedback to the reviewed plan or
-  implementation outside `.agent_memo/`, record decisions, and start another
+  implementation outside `.agent-relaypad/`, record decisions, and start another
   round with `--next-round` when reviewer confirmation is needed.
 - On approved planning reviews, treat the updated project plan/spec as the
   working source and archive it as `final.md`; future agents should not rebuild

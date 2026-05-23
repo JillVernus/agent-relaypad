@@ -9,18 +9,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-import agent_memo
-from agent_memo import archive_review, check_review, create_review, init_memo, reconcile_review, rollup_status, write_response
+import relaypad
+from relaypad import archive_review, check_review, create_review, init_relaypad, reconcile_review, rollup_status, write_response
 
 
-class AgentMemoTests(unittest.TestCase):
+class AgentRelaypadTests(unittest.TestCase):
     def test_init_creates_idle_memo_tree(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
 
-            result = init_memo(root)
+            result = init_relaypad(root)
 
-            memo = root / ".agent_memo"
+            memo = root / ".agent-relaypad"
             self.assertEqual(result["status"], "initialized")
             self.assertTrue((memo / "active").is_dir())
             self.assertTrue((memo / "archive").is_dir())
@@ -33,11 +33,11 @@ class AgentMemoTests(unittest.TestCase):
     def test_init_does_not_overwrite_existing_gitignore_override(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
-            gitignore = root / ".agent_memo" / ".gitignore"
+            init_relaypad(root)
+            gitignore = root / ".agent-relaypad" / ".gitignore"
             gitignore.write_text("custom override\n", encoding="utf-8")
 
-            result = init_memo(root)
+            result = init_relaypad(root)
 
             self.assertEqual(result["status"], "exists")
             self.assertEqual(gitignore.read_text(encoding="utf-8"), "custom override\n")
@@ -45,7 +45,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_create_review_writes_request_status_and_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             artifact = root / "plan.md"
             artifact.write_text("# Plan\n\nDo the work.\n", encoding="utf-8")
 
@@ -58,7 +58,7 @@ class AgentMemoTests(unittest.TestCase):
                 artifact_text=artifact.read_text(encoding="utf-8"),
             )
 
-            review_dir = root / ".agent_memo" / "active" / result["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / result["review_id"]
             status = json.loads((review_dir / "status.json").read_text(encoding="utf-8"))
             self.assertTrue((review_dir / "request.md").is_file())
             self.assertTrue((review_dir / "status.json").is_file())
@@ -75,7 +75,7 @@ class AgentMemoTests(unittest.TestCase):
             self.assertEqual(status["round"], 1)
             self.assertEqual(status["status"], "waiting_for_review")
             self.assertEqual(
-                json.loads((root / ".agent_memo" / "state.json").read_text(encoding="utf-8"))["active_review_id"],
+                json.loads((root / ".agent-relaypad" / "state.json").read_text(encoding="utf-8"))["active_review_id"],
                 result["review_id"],
             )
             self.assertIn("# Plan", (review_dir / "request.md").read_text(encoding="utf-8"))
@@ -83,7 +83,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_create_review_rejects_second_active_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             create_review(root, "codex", "planning", "first", ["agy"], "one")
             with self.assertRaises(ValueError):
                 create_review(root, "codex", "planning", "second", ["agy"], "two")
@@ -95,7 +95,7 @@ class AgentMemoTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 create_review(root, "codex", "planning", "auth flow", ["../evil"], "one")
 
-            active = root / ".agent_memo" / "active"
+            active = root / ".agent-relaypad" / "active"
             self.assertFalse(active.exists() and list(active.iterdir()))
 
     def test_create_review_rejects_empty_reviewer_list_before_creating_active_review(self):
@@ -105,51 +105,51 @@ class AgentMemoTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 create_review(root, "codex", "planning", "auth flow", [], "one")
 
-            active = root / ".agent_memo" / "active"
+            active = root / ".agent-relaypad" / "active"
             self.assertFalse(active.exists() and list(active.iterdir()))
 
     def test_create_review_rejects_unsupported_phase_without_active_folder(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
 
             with self.assertRaises(ValueError):
                 create_review(root, "codex", "design", "auth flow", ["agy"], "one")
 
-            self.assertEqual(list((root / ".agent_memo" / "active").iterdir()), [])
+            self.assertEqual(list((root / ".agent-relaypad" / "active").iterdir()), [])
 
     def test_create_review_cleans_partial_directory_when_status_write_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
-            original_write_json = agent_memo.write_json
+            init_relaypad(root)
+            original_write_json = relaypad.write_json
 
             def fail_status_write(path, data):
                 if Path(path).name == "status.json":
                     raise RuntimeError("status write failed")
                 original_write_json(path, data)
 
-            agent_memo.write_json = fail_status_write
+            relaypad.write_json = fail_status_write
             try:
                 with self.assertRaises(RuntimeError):
                     create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             finally:
-                agent_memo.write_json = original_write_json
+                relaypad.write_json = original_write_json
 
-            self.assertEqual(list((root / ".agent_memo" / "active").iterdir()), [])
+            self.assertEqual(list((root / ".agent-relaypad" / "active").iterdir()), [])
 
     def test_check_review_returns_no_active_review_when_state_is_idle(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
 
             self.assertEqual(check_review(root, "agy"), {"status": "no_active_review"})
 
     def test_check_review_returns_broken_state_when_idle_state_has_stray_active_review_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
-            stray = root / ".agent_memo" / "active" / "2026-05-22-plan-stray"
+            init_relaypad(root)
+            stray = root / ".agent-relaypad" / "active" / "2026-05-22-plan-stray"
             stray.mkdir(parents=True)
 
             result = check_review(root, "agy")
@@ -161,9 +161,9 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_returns_multiple_active_reviews_when_idle_state_has_stray_dirs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
-            (root / ".agent_memo" / "active" / "2026-05-22-plan-one").mkdir(parents=True)
-            (root / ".agent_memo" / "active" / "2026-05-22-plan-two").mkdir(parents=True)
+            init_relaypad(root)
+            (root / ".agent-relaypad" / "active" / "2026-05-22-plan-one").mkdir(parents=True)
+            (root / ".agent-relaypad" / "active" / "2026-05-22-plan-two").mkdir(parents=True)
 
             result = check_review(root, "agy")
 
@@ -174,9 +174,9 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_returns_broken_state_when_active_review_missing_request(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
-            request_path = root / ".agent_memo" / "active" / created["review_id"] / "request.md"
+            request_path = root / ".agent-relaypad" / "active" / created["review_id"] / "request.md"
             request_path.unlink()
 
             result = check_review(root, "agy")
@@ -187,7 +187,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_returns_active_review_round_and_missing_own_response(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
 
             result = check_review(root, "agy")
@@ -201,7 +201,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_reports_same_round_response_as_not_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "approved", "Looks good.")
 
@@ -215,7 +215,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_reports_prior_round_response_as_missing_after_next_round(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "changes_requested", "Needs tests.")
             rollup_status(root)
@@ -231,7 +231,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_rejects_malformed_active_review_id_without_reading_outside_active(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             outside = root / "outside_review"
             outside.mkdir()
             (outside / "responses").mkdir()
@@ -239,7 +239,7 @@ class AgentMemoTests(unittest.TestCase):
                 json.dumps({"review_id": "../../outside_review", "round": 99, "required_reviewers": ["agy"]}),
                 encoding="utf-8",
             )
-            state_path = root / ".agent_memo" / "state.json"
+            state_path = root / ".agent-relaypad" / "state.json"
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["active_review_id"] = "../../outside_review"
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -254,9 +254,9 @@ class AgentMemoTests(unittest.TestCase):
     def test_write_response_writes_only_own_response_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy", "cc"], "one")
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
 
             result = write_response(root, "agy", "changes_requested", "Needs tests.")
 
@@ -275,7 +275,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_write_response_rejects_malformed_active_review_id_without_writing_outside_active(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             outside = root / "outside_review"
             outside.mkdir()
             (outside / "responses").mkdir()
@@ -283,7 +283,7 @@ class AgentMemoTests(unittest.TestCase):
                 json.dumps({"review_id": "../../outside_review", "round": 99, "required_reviewers": ["agy"]}),
                 encoding="utf-8",
             )
-            state_path = root / ".agent_memo" / "state.json"
+            state_path = root / ".agent-relaypad" / "state.json"
             state = json.loads(state_path.read_text(encoding="utf-8"))
             state["active_review_id"] = "../../outside_review"
             state_path.write_text(json.dumps(state), encoding="utf-8")
@@ -296,7 +296,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_accepts_generated_review_id_shape(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "implementation_review", "auth flow", ["agy"], "one")
 
             result = check_review(root, "agy")
@@ -307,7 +307,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_write_response_rejects_invalid_status(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
 
             with self.assertRaises(ValueError):
@@ -316,9 +316,9 @@ class AgentMemoTests(unittest.TestCase):
     def test_write_response_rejects_agent_path_traversal_without_writing_outside_responses(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
             request_path = review_dir / "request.md"
             original_request = request_path.read_text(encoding="utf-8")
 
@@ -332,7 +332,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_rejects_agent_path_traversal(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
 
             with self.assertRaises(ValueError):
@@ -341,9 +341,9 @@ class AgentMemoTests(unittest.TestCase):
     def test_write_response_accepts_hyphen_and_underscore_agent_id(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agent_2", "gemini-1"], "one")
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
 
             write_response(root, "gemini-1", "approved", "Looks good.")
             write_response(root, "agent_2", "changes_requested", "Needs tests.")
@@ -354,8 +354,8 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_returns_invalid_json_for_corrupt_state_without_rewriting(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
-            state_path = root / ".agent_memo" / "state.json"
+            init_relaypad(root)
+            state_path = root / ".agent-relaypad" / "state.json"
             state_path.write_text("{not json", encoding="utf-8")
 
             result = check_review(root, "agy")
@@ -366,9 +366,9 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_returns_invalid_json_for_corrupt_state_even_with_duplicate_archive_dirs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
-            memo = root / ".agent_memo"
+            memo = root / ".agent-relaypad"
             shutil.copytree(memo / "active" / created["review_id"], memo / "archive" / created["review_id"])
             state_path = memo / "state.json"
             state_path.write_text("{not json", encoding="utf-8")
@@ -383,17 +383,17 @@ class AgentMemoTests(unittest.TestCase):
             root = Path(tmp)
             body_file = root / "body.md"
             body_file.write_text("Looks good.", encoding="utf-8")
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
 
             check_out = io.StringIO()
             with contextlib.redirect_stdout(check_out):
-                agent_memo.main(["check", "--root", str(root), "--agent", "agy"])
+                relaypad.main(["check", "--root", str(root), "--agent", "agy"])
             self.assertEqual(json.loads(check_out.getvalue())["review_id"], created["review_id"])
 
             respond_out = io.StringIO()
             with contextlib.redirect_stdout(respond_out):
-                agent_memo.main(
+                relaypad.main(
                     [
                         "respond",
                         "--root",
@@ -408,20 +408,20 @@ class AgentMemoTests(unittest.TestCase):
                 )
 
             self.assertEqual(json.loads(respond_out.getvalue())["status"], "written")
-            self.assertTrue((root / ".agent_memo" / "active" / created["review_id"] / "responses" / "agy.md").is_file())
+            self.assertTrue((root / ".agent-relaypad" / "active" / created["review_id"] / "responses" / "agy.md").is_file())
 
     def test_cli_duplicate_create_prints_json_error_without_traceback(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             artifact = root / "plan.md"
             artifact.write_text("# Plan\n", encoding="utf-8")
-            init_memo(root)
+            init_relaypad(root)
             create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
 
             stdout = io.StringIO()
             stderr = io.StringIO()
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                result = agent_memo.main(
+                result = relaypad.main(
                     [
                         "create",
                         "--root",
@@ -452,13 +452,13 @@ class AgentMemoTests(unittest.TestCase):
             root = Path(tmp)
             artifact = root / "plan.md"
             artifact.write_text("# Plan\n", encoding="utf-8")
-            init_memo(root)
-            (root / ".agent_memo" / "state.json").write_text("{not json", encoding="utf-8")
+            init_relaypad(root)
+            (root / ".agent-relaypad" / "state.json").write_text("{not json", encoding="utf-8")
 
             stdout = io.StringIO()
             stderr = io.StringIO()
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                result = agent_memo.main(
+                result = relaypad.main(
                     [
                         "create",
                         "--root",
@@ -492,7 +492,7 @@ class AgentMemoTests(unittest.TestCase):
             stdout = io.StringIO()
             stderr = io.StringIO()
             with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                result = agent_memo.main(
+                result = relaypad.main(
                     [
                         "create",
                         "--root",
@@ -511,7 +511,7 @@ class AgentMemoTests(unittest.TestCase):
                 )
 
             payload = json.loads(stdout.getvalue())
-            active = root / ".agent_memo" / "active"
+            active = root / ".agent-relaypad" / "active"
             self.assertEqual(result, 1)
             self.assertEqual(payload["status"], "error")
             self.assertEqual(payload["error_type"], "ValueError")
@@ -523,9 +523,9 @@ class AgentMemoTests(unittest.TestCase):
     def test_rollup_status_sets_changes_requested_for_current_round_change_request(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy", "cc"], "one")
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
             (review_dir / "responses" / "agy.md").write_text(
                 "Status: changes_requested\nRound: 1\n\nNeeds work.\n",
                 encoding="utf-8",
@@ -544,11 +544,11 @@ class AgentMemoTests(unittest.TestCase):
     def test_rollup_status_sets_approved_when_all_required_current_round_responses_approve(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy", "cc"], "one")
             write_response(root, "agy", "approved", "Looks good.")
             write_response(root, "cc", "approved", "Looks good.")
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
 
             result = rollup_status(root)
 
@@ -559,10 +559,10 @@ class AgentMemoTests(unittest.TestCase):
     def test_rollup_status_keeps_waiting_for_review_when_current_round_responses_are_missing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy", "cc"], "one")
             write_response(root, "agy", "approved", "Looks good.")
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
 
             result = rollup_status(root)
 
@@ -573,11 +573,11 @@ class AgentMemoTests(unittest.TestCase):
     def test_reconcile_without_next_round_moves_changes_requested_to_waiting_for_owner(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "changes_requested", "Needs tests.")
             rollup_status(root)
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
 
             result = reconcile_review(root, "codex", "# Decisions\n\nWill add tests.\n", next_round=False)
 
@@ -594,11 +594,11 @@ class AgentMemoTests(unittest.TestCase):
     def test_reconcile_next_round_writes_decisions_increments_round_and_waits_for_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "changes_requested", "Needs tests.")
             rollup_status(root)
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
 
             result = reconcile_review(root, "codex", "# Decisions\n\nTests added.\n", next_round=True)
 
@@ -615,9 +615,9 @@ class AgentMemoTests(unittest.TestCase):
     def test_reconcile_does_not_change_request_md(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
             request_path = review_dir / "request.md"
             original_request = request_path.read_text(encoding="utf-8")
 
@@ -628,7 +628,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_reconcile_rejects_owner_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
 
             with self.assertRaises(ValueError):
@@ -637,7 +637,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_reconcile_next_round_rejects_approved_thread(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "approved", "Looks good.")
             rollup_status(root)
@@ -650,13 +650,13 @@ class AgentMemoTests(unittest.TestCase):
             root = Path(tmp)
             decisions_file = root / "decisions.md"
             decisions_file.write_text("# Decisions\n\nLooks good.\n", encoding="utf-8")
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "approved", "Looks good.")
 
             reconcile_out = io.StringIO()
             with contextlib.redirect_stdout(reconcile_out):
-                agent_memo.main(
+                relaypad.main(
                     [
                         "reconcile",
                         "--root",
@@ -668,7 +668,7 @@ class AgentMemoTests(unittest.TestCase):
                     ]
                 )
 
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
             self.assertEqual(json.loads(reconcile_out.getvalue())["status"], "approved")
             self.assertEqual(
                 (review_dir / "decisions.md").read_text(encoding="utf-8"),
@@ -680,14 +680,14 @@ class AgentMemoTests(unittest.TestCase):
             root = Path(tmp)
             decisions_file = root / "decisions.md"
             decisions_file.write_text("# Decisions\n\nTests added.\n", encoding="utf-8")
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "changes_requested", "Needs tests.")
             rollup_status(root)
 
             reconcile_out = io.StringIO()
             with contextlib.redirect_stdout(reconcile_out):
-                agent_memo.main(
+                relaypad.main(
                     [
                         "reconcile",
                         "--root",
@@ -700,7 +700,7 @@ class AgentMemoTests(unittest.TestCase):
                     ]
                 )
 
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
             status = json.loads((review_dir / "status.json").read_text(encoding="utf-8"))
             result = json.loads(reconcile_out.getvalue())
             self.assertEqual(result["status"], "waiting_for_review")
@@ -720,7 +720,7 @@ class AgentMemoTests(unittest.TestCase):
 
             create_out = io.StringIO()
             with contextlib.redirect_stdout(create_out):
-                create_result = agent_memo.main(
+                create_result = relaypad.main(
                     [
                         "create",
                         "--root",
@@ -742,7 +742,7 @@ class AgentMemoTests(unittest.TestCase):
 
             respond_out = io.StringIO()
             with contextlib.redirect_stdout(respond_out):
-                respond_result = agent_memo.main(
+                respond_result = relaypad.main(
                     [
                         "respond",
                         "--root",
@@ -759,7 +759,7 @@ class AgentMemoTests(unittest.TestCase):
 
             reconcile_out = io.StringIO()
             with contextlib.redirect_stdout(reconcile_out):
-                reconcile_result = agent_memo.main(
+                reconcile_result = relaypad.main(
                     [
                         "reconcile",
                         "--root",
@@ -772,7 +772,7 @@ class AgentMemoTests(unittest.TestCase):
                     ]
                 )
 
-            review_dir = root / ".agent_memo" / "active" / review_id
+            review_dir = root / ".agent-relaypad" / "active" / review_id
             status = json.loads((review_dir / "status.json").read_text(encoding="utf-8"))
             result = json.loads(reconcile_out.getvalue())
             self.assertEqual(reconcile_result, 0)
@@ -784,25 +784,25 @@ class AgentMemoTests(unittest.TestCase):
     def test_archive_rejects_empty_final_text(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "approved", "Looks good.")
             rollup_status(root)
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
 
             with self.assertRaises(ValueError):
                 archive_review(root, "codex", "   \n")
 
             self.assertTrue(review_dir.is_dir())
             self.assertFalse((review_dir / "final.md").exists())
-            self.assertFalse((root / ".agent_memo" / "archive" / created["review_id"]).exists())
+            self.assertFalse((root / ".agent-relaypad" / "archive" / created["review_id"]).exists())
 
     def test_archive_rejects_thread_that_is_not_approved(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
-            review_dir = root / ".agent_memo" / "active" / created["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / created["review_id"]
 
             with self.assertRaises(ValueError):
                 archive_review(root, "codex", "# Final\n\nNot approved yet.\n")
@@ -813,11 +813,11 @@ class AgentMemoTests(unittest.TestCase):
     def test_archive_copies_approved_review_clears_state_and_deletes_active(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "approved", "Looks good.")
             rollup_status(root)
-            memo = root / ".agent_memo"
+            memo = root / ".agent-relaypad"
             active_dir = memo / "active" / created["review_id"]
 
             result = archive_review(root, "codex", "# Final\n\nShip it.\n")
@@ -840,7 +840,7 @@ class AgentMemoTests(unittest.TestCase):
     def test_archive_rejects_owner_mismatch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "approved", "Looks good.")
             rollup_status(root)
@@ -851,24 +851,24 @@ class AgentMemoTests(unittest.TestCase):
     def test_archive_copy_failure_keeps_active_approved_and_allows_retry(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "approved", "Looks good.")
             rollup_status(root)
-            memo = root / ".agent_memo"
+            memo = root / ".agent-relaypad"
             active_dir = memo / "active" / created["review_id"]
             archive_dir = memo / "archive" / created["review_id"]
-            original_verify_archive_copy = agent_memo.verify_archive_copy
+            original_verify_archive_copy = relaypad.verify_archive_copy
 
             def fail_verify(path):
                 raise RuntimeError("verification failed")
 
-            agent_memo.verify_archive_copy = fail_verify
+            relaypad.verify_archive_copy = fail_verify
             try:
                 with self.assertRaises(RuntimeError):
                     archive_review(root, "codex", "# Final\n\nShip it.\n")
             finally:
-                agent_memo.verify_archive_copy = original_verify_archive_copy
+                relaypad.verify_archive_copy = original_verify_archive_copy
 
             state = json.loads((memo / "state.json").read_text(encoding="utf-8"))
             active_status = json.loads((active_dir / "status.json").read_text(encoding="utf-8"))
@@ -886,9 +886,9 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_reports_interrupted_archive_when_active_and_archive_copy_exist(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
-            memo = root / ".agent_memo"
+            memo = root / ".agent-relaypad"
             shutil.copytree(memo / "active" / created["review_id"], memo / "archive" / created["review_id"])
 
             result = check_review(root, "agy")
@@ -899,9 +899,9 @@ class AgentMemoTests(unittest.TestCase):
     def test_check_review_reports_interrupted_archive_after_state_cleared_before_active_delete(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
-            memo = root / ".agent_memo"
+            memo = root / ".agent-relaypad"
             shutil.copytree(memo / "active" / created["review_id"], memo / "archive" / created["review_id"])
             state_path = memo / "state.json"
             state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -918,14 +918,14 @@ class AgentMemoTests(unittest.TestCase):
             root = Path(tmp)
             final_file = root / "final.md"
             final_file.write_text("# Final\n\nShip it.\n", encoding="utf-8")
-            init_memo(root)
+            init_relaypad(root)
             created = create_review(root, "codex", "planning", "auth flow", ["agy"], "one")
             write_response(root, "agy", "approved", "Looks good.")
             rollup_status(root)
 
             archive_out = io.StringIO()
             with contextlib.redirect_stdout(archive_out):
-                agent_memo.main(
+                relaypad.main(
                     [
                         "archive",
                         "--root",
@@ -940,7 +940,7 @@ class AgentMemoTests(unittest.TestCase):
             result = json.loads(archive_out.getvalue())
             self.assertEqual(result["status"], "archived")
             self.assertEqual(result["review_id"], created["review_id"])
-            self.assertTrue((root / ".agent_memo" / "archive" / created["review_id"] / "final.md").is_file())
+            self.assertTrue((root / ".agent-relaypad" / "archive" / created["review_id"] / "final.md").is_file())
 
 
 if __name__ == "__main__":

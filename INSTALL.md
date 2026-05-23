@@ -1,24 +1,24 @@
 # Install Agent Relaypad Skills
 
 Use this file as an instruction sheet for Codex, Claude Code, Antigravity CLI,
-or another agent that needs to install or update the `agent-memo-review` skill.
+or another agent that needs to install or update the `agent-relaypad` skill.
 
 ## Source Folder
 
 The skill source folder is:
 
 ```text
-agent-memo-review/
+agent-relaypad/
 ```
 
 Install or update the whole folder, including:
 
 ```text
-agent-memo-review/
+agent-relaypad/
   SKILL.md
   agents/openai.yaml
-  scripts/agent_memo.py
-  tests/test_agent_memo.py
+  scripts/relaypad.py
+  tests/test_relaypad.py
 ```
 
 Do not copy only `SKILL.md`; the helper script is required.
@@ -30,25 +30,25 @@ Install into the current agent's user skills directory.
 Known Codex target:
 
 ```text
-~/.codex/skills/agent-memo-review/
+~/.codex/skills/agent-relaypad/
 ```
 
 Other agents may use different skill/plugin folders. Do not guess blindly. The
 installing agent should first identify its own configured user skill directory,
-then copy the `agent-memo-review/` folder there.
+then copy the `agent-relaypad/` folder there.
 
 Known or expected target patterns:
 
 | Agent | Target |
 | --- | --- |
-| Codex | `~/.codex/skills/agent-memo-review/` |
+| Codex | `~/.codex/skills/agent-relaypad/` |
 | Claude Code | Use Claude Code's configured user skills/plugin directory. If unknown, ask Claude Code to report it before copying. |
 | Antigravity CLI | Use Antigravity CLI's configured user skills directory. If unknown, ask Antigravity to report it before copying. |
 
 Keep the final folder name exactly:
 
 ```text
-agent-memo-review
+agent-relaypad
 ```
 
 If the target directory is not known, stop and ask:
@@ -65,14 +65,14 @@ If the Codex target folder does not exist:
 
 ```bash
 mkdir -p ~/.codex/skills
-cp -R agent-memo-review ~/.codex/skills/
+cp -R agent-relaypad ~/.codex/skills/
 ```
 
 Then verify:
 
 ```bash
-test -f ~/.codex/skills/agent-memo-review/SKILL.md
-test -f ~/.codex/skills/agent-memo-review/scripts/agent_memo.py
+test -f ~/.codex/skills/agent-relaypad/SKILL.md
+test -f ~/.codex/skills/agent-relaypad/scripts/relaypad.py
 ```
 
 Restart or reload the agent after install.
@@ -89,15 +89,15 @@ Then install:
 
 ```bash
 mkdir -p "$TARGET_SKILLS_DIR"
-cp -R agent-memo-review "$TARGET_SKILLS_DIR/"
+cp -R agent-relaypad "$TARGET_SKILLS_DIR/"
 ```
 
 Then verify:
 
 ```bash
-test -f "$TARGET_SKILLS_DIR/agent-memo-review/SKILL.md"
-test -f "$TARGET_SKILLS_DIR/agent-memo-review/scripts/agent_memo.py"
-python "$TARGET_SKILLS_DIR/agent-memo-review/scripts/agent_memo.py" --help
+test -f "$TARGET_SKILLS_DIR/agent-relaypad/SKILL.md"
+test -f "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad.py"
+python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad.py" --help
 ```
 
 Restart or reload that agent after install.
@@ -110,14 +110,14 @@ the source folder.
 ### Codex
 
 ```bash
-rm -rf ~/.codex/skills/agent-memo-review
-cp -R agent-memo-review ~/.codex/skills/
+rm -rf ~/.codex/skills/agent-relaypad
+cp -R agent-relaypad ~/.codex/skills/
 ```
 
 Then verify:
 
 ```bash
-python ~/.codex/skills/agent-memo-review/scripts/agent_memo.py --help
+python ~/.codex/skills/agent-relaypad/scripts/relaypad.py --help
 ```
 
 Expected command list:
@@ -139,23 +139,23 @@ TARGET_SKILLS_DIR="/path/to/that-agent/skills"
 Then update:
 
 ```bash
-rm -rf "$TARGET_SKILLS_DIR/agent-memo-review"
-cp -R agent-memo-review "$TARGET_SKILLS_DIR/"
+rm -rf "$TARGET_SKILLS_DIR/agent-relaypad"
+cp -R agent-relaypad "$TARGET_SKILLS_DIR/"
 ```
 
 Then verify:
 
 ```bash
-python "$TARGET_SKILLS_DIR/agent-memo-review/scripts/agent_memo.py" --help
+python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad.py" --help
 ```
 
 Restart or reload that agent after update.
 
 ## Safe Update Notes
 
-- It is safe to replace the installed `agent-memo-review/` skill folder.
-- Do not delete project-local `.agent_memo/` folders during install or update.
-- Do not overwrite a project's `.agent_memo/.gitignore`; the helper preserves
+- It is safe to replace the installed `agent-relaypad/` skill folder.
+- Do not delete project-local `.agent-relaypad/` folders during install or update.
+- Do not overwrite a project's `.agent-relaypad/.gitignore`; the helper preserves
   existing project overrides.
 - If the agent has a marketplace/cache step for skills, run that agent's normal
   refresh or reload command after copying.
@@ -168,7 +168,7 @@ Restart or reload that agent after update.
 From this repo, run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest discover -s agent-memo-review/tests -v
+PYTHONPATH=agent-relaypad/scripts python -m unittest discover -s agent-relaypad/tests -v
 ```
 
 Expected:
@@ -183,7 +183,7 @@ OK
 For Codex:
 
 ```bash
-python ~/.codex/skills/agent-memo-review/scripts/agent_memo.py --help
+python ~/.codex/skills/agent-relaypad/scripts/relaypad.py --help
 ```
 
 For another agent, replace `~/.codex/skills` with that agent's skills path.
@@ -192,7 +192,7 @@ Variable form:
 
 ```bash
 TARGET_SKILLS_DIR="/path/to/that-agent/skills"
-python "$TARGET_SKILLS_DIR/agent-memo-review/scripts/agent_memo.py" --help
+python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad.py" --help
 ```
 
 ## Quick Smoke Test
@@ -202,9 +202,9 @@ Use a temporary project folder:
 ```bash
 tmpdir=$(mktemp -d)
 printf '# Plan\n\nTest install.\n' > "$tmpdir/plan.md"
-python ~/.codex/skills/agent-memo-review/scripts/agent_memo.py init --root "$tmpdir"
-python ~/.codex/skills/agent-memo-review/scripts/agent_memo.py create --root "$tmpdir" --owner codex --phase planning --topic "install smoke" --reviewers agy --artifact-file "$tmpdir/plan.md"
-python ~/.codex/skills/agent-memo-review/scripts/agent_memo.py check --root "$tmpdir" --agent agy
+python ~/.codex/skills/agent-relaypad/scripts/relaypad.py init --root "$tmpdir"
+python ~/.codex/skills/agent-relaypad/scripts/relaypad.py create --root "$tmpdir" --owner codex --phase planning --topic "install smoke" --reviewers agy --artifact-file "$tmpdir/plan.md"
+python ~/.codex/skills/agent-relaypad/scripts/relaypad.py check --root "$tmpdir" --agent agy
 ```
 
 Expected:
@@ -218,10 +218,10 @@ Expected:
 Give the agent this instruction:
 
 ```text
-Read INSTALL.md and install or update the agent-memo-review skill for your own
+Read INSTALL.md and install or update the agent-relaypad skill for your own
 runtime. First identify the correct user skills directory for this agent. If
 you cannot identify it confidently, stop and ask me for the target path. Do not
-delete any project-local .agent_memo folders. Verify the installed helper with
+delete any project-local .agent-relaypad folders. Verify the installed helper with
 --help after copying.
 ```
 

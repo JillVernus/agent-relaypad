@@ -1,6 +1,0 @@
-interface:
-  display_name: "Agent Memo Review"
-  short_description: "Coordinate cross-agent plan and code reviews"
-  default_prompt: "Use $agent-memo-review to check or create a shared agent review memo."
-policy:
-  allow_implicit_invocation: true

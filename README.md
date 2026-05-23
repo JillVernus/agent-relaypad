@@ -3,9 +3,9 @@
 Agent Relaypad is a local relay pad for cross-agent planning, review, and
 handoff.
 
-The first included skill, `agent-memo-review`, lets Codex, Claude Code,
+The first included skill, `agent-relaypad`, lets Codex, Claude Code,
 Antigravity CLI, and other agents coordinate plan reviews and implementation
-reviews through project-local `.agent_memo/` files.
+reviews through project-local `.agent-relaypad/` files.
 
 The first version supports one active review at a time. Each reviewing agent
 writes only its own response file, and the approved result is saved as
@@ -14,11 +14,11 @@ writes only its own response file, and the approved result is saved as
 ## What Is Included
 
 ```text
-agent-memo-review/
+agent-relaypad/
   SKILL.md
   agents/openai.yaml
-  scripts/agent_memo.py
-  tests/test_agent_memo.py
+  scripts/relaypad.py
+  tests/test_relaypad.py
 ```
 
 The skill instructions tell agents how to use the workflow. The Python helper
@@ -32,17 +32,17 @@ does the deterministic file operations.
 
 ## Install
 
-Install the whole `agent-memo-review/` folder into each agent's user skills
+Install the whole `agent-relaypad/` folder into each agent's user skills
 directory.
 
 Common Codex install location:
 
 ```bash
 mkdir -p ~/.codex/skills
-cp -R agent-memo-review ~/.codex/skills/
+cp -R agent-relaypad ~/.codex/skills/
 ```
 
-For Claude Code and Antigravity CLI, copy the same `agent-memo-review/` folder
+For Claude Code and Antigravity CLI, copy the same `agent-relaypad/` folder
 to the user skills directory configured for that agent. If the exact directory
 differs on your machine, keep the folder name and internal structure unchanged.
 
@@ -53,16 +53,16 @@ After installing, restart or reload the agent so it discovers the new skill.
 You can also run the helper directly from this repo or from an installed skill
 folder.
 
-Initialize memo state in a project:
+Initialize relaypad state in a project:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py init --root /path/to/project
+python agent-relaypad/scripts/relaypad.py init --root /path/to/project
 ```
 
 Create a planning review:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py create \
+python agent-relaypad/scripts/relaypad.py create \
   --root /path/to/project \
   --owner codex \
   --phase planning \
@@ -74,7 +74,7 @@ python agent-memo-review/scripts/agent_memo.py create \
 Check the active review as a reviewer:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py check \
+python agent-relaypad/scripts/relaypad.py check \
   --root /path/to/project \
   --agent agy
 ```
@@ -82,7 +82,7 @@ python agent-memo-review/scripts/agent_memo.py check \
 Write reviewer feedback:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py respond \
+python agent-relaypad/scripts/relaypad.py respond \
   --root /path/to/project \
   --agent agy \
   --status changes_requested \
@@ -92,7 +92,7 @@ python agent-memo-review/scripts/agent_memo.py respond \
 Reconcile feedback as the owner:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py reconcile \
+python agent-relaypad/scripts/relaypad.py reconcile \
   --root /path/to/project \
   --owner codex \
   --decisions-file /tmp/decisions.md
@@ -101,7 +101,7 @@ python agent-memo-review/scripts/agent_memo.py reconcile \
 Start another review round after changes:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py reconcile \
+python agent-relaypad/scripts/relaypad.py reconcile \
   --root /path/to/project \
   --owner codex \
   --decisions-file /tmp/decisions.md \
@@ -111,7 +111,7 @@ python agent-memo-review/scripts/agent_memo.py reconcile \
 Archive an approved review:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py archive \
+python agent-relaypad/scripts/relaypad.py archive \
   --root /path/to/project \
   --owner codex \
   --final-file /tmp/final.md
@@ -119,25 +119,25 @@ python agent-memo-review/scripts/agent_memo.py archive \
 
 For planning reviews, `/tmp/final.md` should be the approved plan itself or a
 concise pointer to the approved project plan/spec file. The owner should update
-the real plan/spec outside `.agent_memo/` before archiving.
+the real plan/spec outside `.agent-relaypad/` before archiving.
 
 ## Typical Agent Workflow
 
 1. Codex creates a review request after planning or implementation.
 2. You switch to Agy or Claude Code.
-3. The reviewer checks the active memo and writes feedback to its own response
+3. The reviewer checks the active review and writes feedback to its own response
    file.
 4. You switch back to Codex.
 5. Codex reconciles feedback, applies accepted changes to the real plan or
    implementation, and either starts another round or archives the approved
    result.
 
-## Project Memo Layout
+## Project Relaypad Layout
 
 The helper creates this inside the target project:
 
 ```text
-.agent_memo/
+.agent-relaypad/
   state.json
   .gitignore
   active/
@@ -165,7 +165,7 @@ Notes:
 
 ## Git Policy
 
-By default, `.agent_memo/.gitignore` contains:
+By default, `.agent-relaypad/.gitignore` contains:
 
 ```gitignore
 active/
@@ -174,7 +174,7 @@ state.json
 
 This keeps active local state out of git while allowing archived review records
 to be committed if your team wants that. The helper preserves an existing
-`.agent_memo/.gitignore` override.
+`.agent-relaypad/.gitignore` override.
 
 ## Agent IDs
 
@@ -215,8 +215,8 @@ error instead of a Python traceback.
 Common statuses:
 
 - `not_initialized`: run `init` first.
-- `no_active_review`: memo state exists, but there is no active review.
-- `invalid_json`: a memo JSON file is corrupt. Ask before repairing it.
+- `no_active_review`: relaypad state exists, but there is no active review.
+- `invalid_json`: a relaypad JSON file is corrupt. Ask before repairing it.
 - `broken_state`: state points to missing or malformed files. Ask before repair.
 - `archive_interrupted`: active and archived copies both exist. Ask whether to
   finish archive cleanup.
@@ -226,7 +226,7 @@ Common statuses:
 Run the test suite:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest discover -s agent-memo-review/tests -v
+PYTHONPATH=agent-relaypad/scripts python -m unittest discover -s agent-relaypad/tests -v
 ```
 
 Expected result:

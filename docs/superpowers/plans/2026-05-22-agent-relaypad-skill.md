@@ -1,8 +1,8 @@
-# Agent Memo Review Skill Implementation Plan
+# Agent Relaypad Skill Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a portable skill that lets Codex, Claude Code, and Antigravity CLI coordinate one active planning or implementation review through project-local `.agent_memo/` files.
+**Goal:** Build a portable skill that lets Codex, Claude Code, and Antigravity CLI coordinate one active planning or implementation review through project-local `.agent-relaypad/` files.
 
 **Architecture:** Create a self-contained skill folder with concise `SKILL.md` instructions and one deterministic stdlib Python helper for file operations. Agents use the skill to decide intent and summarize results; the helper owns review creation, status checks, response writes, reconciliation metadata, and archive safety.
 
@@ -12,20 +12,20 @@
 
 ## File Structure
 
-- Create `agent-memo-review/SKILL.md`
+- Create `agent-relaypad/SKILL.md`
   - Agent-facing workflow, trigger description, safety rules, and command examples.
-- Create `agent-memo-review/agents/openai.yaml`
+- Create `agent-relaypad/agents/openai.yaml`
   - Codex UI metadata for the skill.
-- Create `agent-memo-review/scripts/agent_memo.py`
-  - Deterministic CLI helper for `.agent_memo/` operations.
-- Create `agent-memo-review/tests/test_agent_memo.py`
+- Create `agent-relaypad/scripts/relaypad.py`
+  - Deterministic CLI helper for `.agent-relaypad/` operations.
+- Create `agent-relaypad/tests/test_relaypad.py`
   - Stdlib `unittest` coverage for core behavior.
-- Modify `docs/superpowers/specs/2026-05-22-agent-memo-review-skill-design.md`
+- Modify `docs/superpowers/specs/2026-05-22-agent-relaypad-skill-design.md`
   - Only if implementation uncovers a spec mismatch.
 
 The helper script should keep responsibilities grouped by operation:
 
-- `init_memo(root)` creates `.agent_memo/`, `.gitignore`, `active/`, `archive/`, and idle `state.json`.
+- `init_relaypad(root)` creates `.agent-relaypad/`, `.gitignore`, `active/`, `archive/`, and idle `state.json`.
 - `create_review(...)` creates one active review with immutable `request.md`.
 - `check_review(...)` returns machine-readable state and pending action hints.
 - `write_response(...)` writes only `responses/<agent-id>.md`.
@@ -37,12 +37,12 @@ The helper script should keep responsibilities grouped by operation:
 The script should support these subcommands:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py init --root .
-python agent-memo-review/scripts/agent_memo.py create --root . --owner codex --phase planning --topic "auth flow" --reviewers agy,cc --artifact-file docs/plan.md
-python agent-memo-review/scripts/agent_memo.py check --root . --agent agy
-python agent-memo-review/scripts/agent_memo.py respond --root . --agent agy --status changes_requested --body-file /tmp/agy-review.md
-python agent-memo-review/scripts/agent_memo.py reconcile --root . --owner codex --decisions-file /tmp/decisions.md --next-round
-python agent-memo-review/scripts/agent_memo.py archive --root . --owner codex --final-file /tmp/final.md
+python agent-relaypad/scripts/relaypad.py init --root .
+python agent-relaypad/scripts/relaypad.py create --root . --owner codex --phase planning --topic "auth flow" --reviewers agy,cc --artifact-file docs/plan.md
+python agent-relaypad/scripts/relaypad.py check --root . --agent agy
+python agent-relaypad/scripts/relaypad.py respond --root . --agent agy --status changes_requested --body-file /tmp/agy-review.md
+python agent-relaypad/scripts/relaypad.py reconcile --root . --owner codex --decisions-file /tmp/decisions.md --next-round
+python agent-relaypad/scripts/relaypad.py archive --root . --owner codex --final-file /tmp/final.md
 ```
 
 All commands should print JSON so agents can summarize reliably. Human-readable prose belongs in `SKILL.md`, not the helper output.
@@ -50,26 +50,26 @@ All commands should print JSON so agents can summarize reliably. Human-readable 
 ## Task 1: Create Skill Shell
 
 **Files:**
-- Create: `agent-memo-review/SKILL.md`
-- Create: `agent-memo-review/agents/openai.yaml`
+- Create: `agent-relaypad/SKILL.md`
+- Create: `agent-relaypad/agents/openai.yaml`
 
 - [ ] **Step 1: Write the skill instructions**
 
-Create `agent-memo-review/SKILL.md` with this structure:
+Create `agent-relaypad/SKILL.md` with this structure:
 
 ```markdown
 ---
-name: agent-memo-review
-description: Use when coordinating plan reviews or implementation reviews between Codex, Claude Code, Antigravity CLI, or other agents through a project-local .agent_memo folder.
+name: agent-relaypad
+description: Use when coordinating plan reviews or implementation reviews between Codex, Claude Code, Antigravity CLI, or other agents through a project-local .agent-relaypad folder.
 ---
 
-# Agent Memo Review
+# Agent Relaypad
 
 Use this skill to create, check, review, reconcile, or archive one active cross-agent review in the current project.
 
 ## Core Rules
 
-- Use `.agent_memo/` in the project root.
+- Use `.agent-relaypad/` in the project root.
 - Version 1 supports one active review at a time.
 - Each reviewer writes only `responses/<agent-id>.md`.
 - `request.md` is immutable after creation.
@@ -89,24 +89,24 @@ Never infer identity from owner, missing responses, or recently edited files.
 
 ## Common Intents
 
-- Create review: run `scripts/agent_memo.py create`.
-- Check review: run `scripts/agent_memo.py check`.
-- Write feedback: run `scripts/agent_memo.py respond`.
-- Reconcile feedback: run `scripts/agent_memo.py reconcile`.
-- Archive review: run `scripts/agent_memo.py archive`.
+- Create review: run `scripts/relaypad.py create`.
+- Check review: run `scripts/relaypad.py check`.
+- Write feedback: run `scripts/relaypad.py respond`.
+- Reconcile feedback: run `scripts/relaypad.py reconcile`.
+- Archive review: run `scripts/relaypad.py archive`.
 
-After running a command, summarize the JSON result in plain language and point to the relevant `.agent_memo/` file.
+After running a command, summarize the JSON result in plain language and point to the relevant `.agent-relaypad/` file.
 ```
 
 - [ ] **Step 2: Add Codex UI metadata**
 
-Create `agent-memo-review/agents/openai.yaml`:
+Create `agent-relaypad/agents/openai.yaml`:
 
 ```yaml
 interface:
-  display_name: "Agent Memo Review"
+  display_name: "Agent Relaypad"
   short_description: "Coordinate cross-agent plan and code reviews"
-  default_prompt: "Use $agent-memo-review to check or create a shared agent review memo."
+  default_prompt: "Use $agent-relaypad to check or create a shared cross-agent review."
 policy:
   allow_implicit_invocation: true
 ```
@@ -116,8 +116,8 @@ policy:
 Run:
 
 ```bash
-test -f agent-memo-review/SKILL.md
-test -f agent-memo-review/agents/openai.yaml
+test -f agent-relaypad/SKILL.md
+test -f agent-relaypad/agents/openai.yaml
 ```
 
 Expected: both commands exit `0`.
@@ -125,12 +125,12 @@ Expected: both commands exit `0`.
 ## Task 2: Add Helper Script Skeleton and Initialization
 
 **Files:**
-- Create: `agent-memo-review/scripts/agent_memo.py`
-- Create: `agent-memo-review/tests/test_agent_memo.py`
+- Create: `agent-relaypad/scripts/relaypad.py`
+- Create: `agent-relaypad/tests/test_relaypad.py`
 
 - [ ] **Step 1: Write failing initialization tests**
 
-Create `agent-memo-review/tests/test_agent_memo.py`:
+Create `agent-relaypad/tests/test_relaypad.py`:
 
 ```python
 import json
@@ -138,17 +138,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_memo import init_memo
+from relaypad import init_relaypad
 
 
-class AgentMemoTests(unittest.TestCase):
+class AgentRelaypadTests(unittest.TestCase):
     def test_init_creates_idle_memo_tree(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
 
-            result = init_memo(root)
+            result = init_relaypad(root)
 
-            memo = root / ".agent_memo"
+            memo = root / ".agent-relaypad"
             self.assertEqual(result["status"], "initialized")
             self.assertTrue((memo / "active").is_dir())
             self.assertTrue((memo / "archive").is_dir())
@@ -168,14 +168,14 @@ if __name__ == "__main__":
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest agent-memo-review/tests/test_agent_memo.py
+PYTHONPATH=agent-relaypad/scripts python -m unittest agent-relaypad/tests/test_relaypad.py
 ```
 
-Expected: FAIL because `agent_memo` does not exist.
+Expected: FAIL because `relaypad` does not exist.
 
 - [ ] **Step 3: Implement init skeleton**
 
-Create `agent-memo-review/scripts/agent_memo.py`:
+Create `agent-relaypad/scripts/relaypad.py`:
 
 ```python
 #!/usr/bin/env python3
@@ -192,8 +192,8 @@ def utc_now():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def memo_dir(root):
-    return Path(root) / ".agent_memo"
+def relaypad_dir(root):
+    return Path(root) / ".agent-relaypad"
 
 
 def read_json(path):
@@ -204,9 +204,9 @@ def write_json(path, data):
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
-def init_memo(root):
+def init_relaypad(root):
     root = Path(root)
-    memo = memo_dir(root)
+    memo = relaypad_dir(root)
     (memo / "active").mkdir(parents=True, exist_ok=True)
     (memo / "archive").mkdir(parents=True, exist_ok=True)
     (memo / ".gitignore").write_text("active/\nstate.json\n")
@@ -226,7 +226,7 @@ def main(argv=None):
     p_init.add_argument("--root", default=".")
     args = parser.parse_args(argv)
     if args.command == "init":
-        print(json.dumps(init_memo(Path(args.root)), indent=2, sort_keys=True))
+        print(json.dumps(init_relaypad(Path(args.root)), indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
@@ -238,7 +238,7 @@ if __name__ == "__main__":
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest agent-memo-review/tests/test_agent_memo.py
+PYTHONPATH=agent-relaypad/scripts python -m unittest agent-relaypad/tests/test_relaypad.py
 ```
 
 Expected: PASS.
@@ -246,23 +246,23 @@ Expected: PASS.
 ## Task 3: Implement Review Creation
 
 **Files:**
-- Modify: `agent-memo-review/scripts/agent_memo.py`
-- Modify: `agent-memo-review/tests/test_agent_memo.py`
+- Modify: `agent-relaypad/scripts/relaypad.py`
+- Modify: `agent-relaypad/tests/test_relaypad.py`
 
 - [ ] **Step 1: Add failing creation tests**
 
-Add these methods inside the existing `AgentMemoTests(unittest.TestCase)`
+Add these methods inside the existing `AgentRelaypadTests(unittest.TestCase)`
 class. Do not add module-level test functions, because `python -m unittest`
 will not discover them in this file shape.
 
 ```python
-from agent_memo import create_review
+from relaypad import create_review
 
 
     def test_create_review_writes_request_status_and_state(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             artifact = root / "plan.md"
             artifact.write_text("# Plan\n\nDo the work.\n")
 
@@ -275,19 +275,19 @@ from agent_memo import create_review
                 artifact_text=artifact.read_text(),
             )
 
-            review_dir = root / ".agent_memo" / "active" / result["review_id"]
+            review_dir = root / ".agent-relaypad" / "active" / result["review_id"]
             self.assertTrue((review_dir / "request.md").is_file())
             self.assertTrue((review_dir / "status.json").is_file())
             self.assertFalse((review_dir / "decisions.md").exists())
             self.assertFalse((review_dir / "final.md").exists())
-            self.assertEqual(json.loads((root / ".agent_memo" / "state.json").read_text())["active_review_id"], result["review_id"])
+            self.assertEqual(json.loads((root / ".agent-relaypad" / "state.json").read_text())["active_review_id"], result["review_id"])
             self.assertIn("# Plan", (review_dir / "request.md").read_text())
 
 
     def test_create_review_rejects_second_active_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            init_memo(root)
+            init_relaypad(root)
             create_review(root, "codex", "planning", "first", ["agy"], "one")
             with self.assertRaises(ValueError):
                 create_review(root, "codex", "planning", "second", ["agy"], "two")
@@ -298,7 +298,7 @@ from agent_memo import create_review
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest agent-memo-review/tests/test_agent_memo.py
+PYTHONPATH=agent-relaypad/scripts python -m unittest agent-relaypad/tests/test_relaypad.py
 ```
 
 Expected: FAIL because `create_review` is missing.
@@ -314,11 +314,11 @@ def create_review(root, owner, phase, topic, reviewers, artifact_text):
 
 Implementation requirements:
 
-- Call `init_memo(root)` first.
+- Call `init_relaypad(root)` first.
 - Allow `phase` values `planning` and `implementation_review`.
 - Create review IDs as `YYYY-MM-DD-plan-topic` or `YYYY-MM-DD-impl-topic`.
 - Reject if `state.json.active_review_id` is not `None`.
-- Reject if `.agent_memo/active/` already contains a review folder.
+- Reject if `.agent-relaypad/active/` already contains a review folder.
 - Create `request.md`, `status.json`, and `responses/`.
 - Do not create `decisions.md`, `final.md`, or reviewer response files.
 - Update `state.json` with an `updated_at` re-read guard.
@@ -328,7 +328,7 @@ Implementation requirements:
 Support:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py create --root . --owner codex --phase planning --topic "auth flow" --reviewers agy,cc --artifact-file docs/plan.md
+python agent-relaypad/scripts/relaypad.py create --root . --owner codex --phase planning --topic "auth flow" --reviewers agy,cc --artifact-file docs/plan.md
 ```
 
 Expected output:
@@ -345,7 +345,7 @@ Expected output:
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest agent-memo-review/tests/test_agent_memo.py
+PYTHONPATH=agent-relaypad/scripts python -m unittest agent-relaypad/tests/test_relaypad.py
 ```
 
 Expected: PASS.
@@ -353,8 +353,8 @@ Expected: PASS.
 ## Task 4: Implement Check and Respond
 
 **Files:**
-- Modify: `agent-memo-review/scripts/agent_memo.py`
-- Modify: `agent-memo-review/tests/test_agent_memo.py`
+- Modify: `agent-relaypad/scripts/relaypad.py`
+- Modify: `agent-relaypad/tests/test_relaypad.py`
 
 - [ ] **Step 1: Add failing check/respond tests**
 
@@ -364,7 +364,7 @@ Add tests for:
 - `check_review(root, "agy")` returns the active `review_id`, current `round`, and missing own response when active.
 - `write_response(root, "agy", "changes_requested", "Needs tests.")` writes only `responses/agy.md`.
 - Invalid response status raises `ValueError`.
-- Corrupt `.agent_memo/state.json` makes `check_review` return
+- Corrupt `.agent-relaypad/state.json` makes `check_review` return
   `{"status": "invalid_json", "path": ...}` instead of raising a traceback or
   overwriting the file.
 
@@ -373,7 +373,7 @@ Add tests for:
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest agent-memo-review/tests/test_agent_memo.py
+PYTHONPATH=agent-relaypad/scripts python -m unittest agent-relaypad/tests/test_relaypad.py
 ```
 
 Expected: FAIL because functions are missing.
@@ -382,7 +382,7 @@ Expected: FAIL because functions are missing.
 
 Requirements:
 
-- If `.agent_memo/` or `state.json` is missing, return `{"status": "not_initialized"}`.
+- If `.agent-relaypad/` or `state.json` is missing, return `{"status": "not_initialized"}`.
 - If `active_review_id` is `None`, return `{"status": "no_active_review"}`.
 - If state points to missing active folder, return `{"status": "broken_state", "error": ...}`.
 - If more than one active folder exists, return `{"status": "multiple_active_reviews", ...}`.
@@ -406,8 +406,8 @@ Requirements:
 Support:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py check --root . --agent agy
-python agent-memo-review/scripts/agent_memo.py respond --root . --agent agy --status approved --body-file /tmp/review.md
+python agent-relaypad/scripts/relaypad.py check --root . --agent agy
+python agent-relaypad/scripts/relaypad.py respond --root . --agent agy --status approved --body-file /tmp/review.md
 ```
 
 - [ ] **Step 6: Run tests**
@@ -415,7 +415,7 @@ python agent-memo-review/scripts/agent_memo.py respond --root . --agent agy --st
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest agent-memo-review/tests/test_agent_memo.py
+PYTHONPATH=agent-relaypad/scripts python -m unittest agent-relaypad/tests/test_relaypad.py
 ```
 
 Expected: PASS.
@@ -423,8 +423,8 @@ Expected: PASS.
 ## Task 5: Implement Reconcile and Round Rollup
 
 **Files:**
-- Modify: `agent-memo-review/scripts/agent_memo.py`
-- Modify: `agent-memo-review/tests/test_agent_memo.py`
+- Modify: `agent-relaypad/scripts/relaypad.py`
+- Modify: `agent-relaypad/tests/test_relaypad.py`
 
 - [ ] **Step 1: Add failing reconciliation tests**
 
@@ -443,7 +443,7 @@ Add tests for:
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest agent-memo-review/tests/test_agent_memo.py
+PYTHONPATH=agent-relaypad/scripts python -m unittest agent-relaypad/tests/test_relaypad.py
 ```
 
 Expected: FAIL because reconciliation is missing.
@@ -479,8 +479,8 @@ Requirements:
 Support:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py reconcile --root . --owner codex --decisions-file /tmp/decisions.md
-python agent-memo-review/scripts/agent_memo.py reconcile --root . --owner codex --decisions-file /tmp/decisions.md --next-round
+python agent-relaypad/scripts/relaypad.py reconcile --root . --owner codex --decisions-file /tmp/decisions.md
+python agent-relaypad/scripts/relaypad.py reconcile --root . --owner codex --decisions-file /tmp/decisions.md --next-round
 ```
 
 - [ ] **Step 6: Run tests**
@@ -488,7 +488,7 @@ python agent-memo-review/scripts/agent_memo.py reconcile --root . --owner codex 
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest agent-memo-review/tests/test_agent_memo.py
+PYTHONPATH=agent-relaypad/scripts python -m unittest agent-relaypad/tests/test_relaypad.py
 ```
 
 Expected: PASS.
@@ -496,8 +496,8 @@ Expected: PASS.
 ## Task 6: Implement Archive Safety
 
 **Files:**
-- Modify: `agent-memo-review/scripts/agent_memo.py`
-- Modify: `agent-memo-review/tests/test_agent_memo.py`
+- Modify: `agent-relaypad/scripts/relaypad.py`
+- Modify: `agent-relaypad/tests/test_relaypad.py`
 
 - [ ] **Step 1: Add failing archive tests**
 
@@ -516,7 +516,7 @@ Add tests for:
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest agent-memo-review/tests/test_agent_memo.py
+PYTHONPATH=agent-relaypad/scripts python -m unittest agent-relaypad/tests/test_relaypad.py
 ```
 
 Expected: FAIL because archive behavior is missing.
@@ -540,7 +540,7 @@ Requirements:
 Support:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py archive --root . --owner codex --final-file /tmp/final.md
+python agent-relaypad/scripts/relaypad.py archive --root . --owner codex --final-file /tmp/final.md
 ```
 
 - [ ] **Step 5: Run tests**
@@ -548,7 +548,7 @@ python agent-memo-review/scripts/agent_memo.py archive --root . --owner codex --
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest agent-memo-review/tests/test_agent_memo.py
+PYTHONPATH=agent-relaypad/scripts python -m unittest agent-relaypad/tests/test_relaypad.py
 ```
 
 Expected: PASS.
@@ -556,15 +556,15 @@ Expected: PASS.
 ## Task 7: Polish Skill Instructions Against Real Commands
 
 **Files:**
-- Modify: `agent-memo-review/SKILL.md`
-- Modify: `agent-memo-review/agents/openai.yaml` if metadata becomes stale
+- Modify: `agent-relaypad/SKILL.md`
+- Modify: `agent-relaypad/agents/openai.yaml` if metadata becomes stale
 
 - [ ] **Step 1: Update `SKILL.md` with final command examples**
 
 Make sure examples exactly match implemented CLI flags:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py check --root . --agent codex
+python agent-relaypad/scripts/relaypad.py check --root . --agent codex
 ```
 
 - [ ] **Step 2: Add concise interpretation guidance**
@@ -584,10 +584,10 @@ Run:
 ```bash
 python - <<'PY'
 from pathlib import Path
-p = Path("agent-memo-review/agents/openai.yaml")
+p = Path("agent-relaypad/agents/openai.yaml")
 text = p.read_text()
-assert 'display_name: "Agent Memo Review"' in text
-assert "$agent-memo-review" in text
+assert 'display_name: "Agent Relaypad"' in text
+assert "$agent-relaypad" in text
 PY
 ```
 
@@ -603,7 +603,7 @@ Expected: exits `0`.
 Run:
 
 ```bash
-PYTHONPATH=agent-memo-review/scripts python -m unittest discover -s agent-memo-review/tests -v
+PYTHONPATH=agent-relaypad/scripts python -m unittest discover -s agent-relaypad/tests -v
 ```
 
 Expected: all tests pass.
@@ -615,17 +615,17 @@ Run in a temporary directory:
 ```bash
 tmpdir=$(mktemp -d)
 printf '# Plan\n\nShip it.\n' > "$tmpdir/plan.md"
-python agent-memo-review/scripts/agent_memo.py init --root "$tmpdir"
-python agent-memo-review/scripts/agent_memo.py create --root "$tmpdir" --owner codex --phase planning --topic "smoke plan" --reviewers agy,cc --artifact-file "$tmpdir/plan.md"
+python agent-relaypad/scripts/relaypad.py init --root "$tmpdir"
+python agent-relaypad/scripts/relaypad.py create --root "$tmpdir" --owner codex --phase planning --topic "smoke plan" --reviewers agy,cc --artifact-file "$tmpdir/plan.md"
 printf 'Looks workable.\n' > "$tmpdir/agy.md"
-python agent-memo-review/scripts/agent_memo.py respond --root "$tmpdir" --agent agy --status approved --body-file "$tmpdir/agy.md"
+python agent-relaypad/scripts/relaypad.py respond --root "$tmpdir" --agent agy --status approved --body-file "$tmpdir/agy.md"
 printf 'Approved.\n' > "$tmpdir/cc.md"
-python agent-memo-review/scripts/agent_memo.py respond --root "$tmpdir" --agent cc --status approved --body-file "$tmpdir/cc.md"
+python agent-relaypad/scripts/relaypad.py respond --root "$tmpdir" --agent cc --status approved --body-file "$tmpdir/cc.md"
 printf '# Decisions\n\nAll approved.\n' > "$tmpdir/decisions.md"
-python agent-memo-review/scripts/agent_memo.py reconcile --root "$tmpdir" --owner codex --decisions-file "$tmpdir/decisions.md"
+python agent-relaypad/scripts/relaypad.py reconcile --root "$tmpdir" --owner codex --decisions-file "$tmpdir/decisions.md"
 printf '# Final\n\nApproved smoke plan.\n' > "$tmpdir/final.md"
-python agent-memo-review/scripts/agent_memo.py archive --root "$tmpdir" --owner codex --final-file "$tmpdir/final.md"
-test "$(find "$tmpdir/.agent_memo/archive" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
+python agent-relaypad/scripts/relaypad.py archive --root "$tmpdir" --owner codex --final-file "$tmpdir/final.md"
+test "$(find "$tmpdir/.agent-relaypad/archive" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
 ```
 
 Expected: each command prints JSON success output and the final `test` exits `0`.
@@ -635,7 +635,7 @@ Expected: each command prints JSON success output and the final `test` exits `0`
 Run:
 
 ```bash
-python agent-memo-review/scripts/agent_memo.py check --root "$tmpdir" --agent codex
+python agent-relaypad/scripts/relaypad.py check --root "$tmpdir" --agent codex
 ```
 
 Expected: JSON status is `no_active_review`.
@@ -646,9 +646,9 @@ Run:
 
 ```bash
 badroot=$(mktemp -d)
-mkdir -p "$badroot/.agent_memo"
-printf '{bad json\n' > "$badroot/.agent_memo/state.json"
-python agent-memo-review/scripts/agent_memo.py check --root "$badroot" --agent codex
+mkdir -p "$badroot/.agent-relaypad"
+printf '{bad json\n' > "$badroot/.agent-relaypad/state.json"
+python agent-relaypad/scripts/relaypad.py check --root "$badroot" --agent codex
 ```
 
 Expected: command prints JSON with `"status": "invalid_json"` and a `path`

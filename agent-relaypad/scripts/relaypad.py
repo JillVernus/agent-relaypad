@@ -16,8 +16,8 @@ def utc_now():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def memo_dir(root):
-    return Path(root) / ".agent_memo"
+def relaypad_dir(root):
+    return Path(root) / ".agent-relaypad"
 
 
 def read_json(path):
@@ -63,14 +63,14 @@ def phase_token(phase):
 
 
 def active_review_dirs(root):
-    active = memo_dir(root) / "active"
+    active = relaypad_dir(root) / "active"
     if not active.exists():
         return []
     return sorted(path for path in active.iterdir() if path.is_dir() and not path.name.startswith("."))
 
 
 def archive_review_dirs(root):
-    archive = memo_dir(root) / "archive"
+    archive = relaypad_dir(root) / "archive"
     if not archive.exists():
         return []
     return sorted(path for path in archive.iterdir() if path.is_dir() and not path.name.startswith("."))
@@ -123,9 +123,9 @@ def build_request(review_id, owner, phase, topic, reviewers, created_at, artifac
     )
 
 
-def init_memo(root):
+def init_relaypad(root):
     root = Path(root)
-    memo = memo_dir(root)
+    memo = relaypad_dir(root)
     (memo / "active").mkdir(parents=True, exist_ok=True)
     (memo / "archive").mkdir(parents=True, exist_ok=True)
     gitignore_path = memo / ".gitignore"
@@ -167,9 +167,9 @@ def create_review(root, owner, phase, topic, reviewers, artifact_text):
     if not reviewers:
         raise ValueError("At least one reviewer is required")
 
-    init_memo(root)
+    init_relaypad(root)
     root = Path(root)
-    memo = memo_dir(root)
+    memo = relaypad_dir(root)
     state_path = memo / "state.json"
     token = phase_token(phase)
     lock_dir = memo / "active" / ".create.lock"
@@ -221,7 +221,7 @@ def create_review(root, owner, phase, topic, reviewers, artifact_text):
 
 def active_review_context(root):
     root = Path(root)
-    memo = memo_dir(root)
+    memo = relaypad_dir(root)
     state_path = memo / "state.json"
     if not memo.is_dir() or not state_path.is_file():
         return None, {"status": "not_initialized"}
@@ -292,7 +292,7 @@ def active_review_context(root):
 def check_review(root, agent):
     agent = validate_agent_id(agent)
     root = Path(root)
-    memo = memo_dir(root)
+    memo = relaypad_dir(root)
     state_path = memo / "state.json"
     if not memo.is_dir() or not state_path.is_file():
         return {"status": "not_initialized"}
@@ -502,7 +502,7 @@ def archive_review(root, owner, final_text):
         raise ValueError("Archive requires an approved review")
 
     root = context["root"]
-    memo = memo_dir(root)
+    memo = relaypad_dir(root)
     archive_dir = memo / "archive" / context["review_id"]
     if archive_dir.exists():
         raise ValueError(f"Archive already exists: {archive_dir}")
@@ -568,7 +568,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         if args.command == "init":
-            print(json.dumps(init_memo(Path(args.root)), indent=2, sort_keys=True))
+            print(json.dumps(init_relaypad(Path(args.root)), indent=2, sort_keys=True))
         elif args.command == "create":
             reviewers = [reviewer.strip() for reviewer in args.reviewers.split(",") if reviewer.strip()]
             artifact_text = Path(args.artifact_file).read_text(encoding="utf-8")

@@ -1,4 +1,4 @@
-# Agent Memo Review Skill Design
+# Agent Relaypad Skill Design
 
 Date: 2026-05-22
 Status: Draft
@@ -17,7 +17,7 @@ straightforward.
 
 In scope:
 
-- Create and manage a project-local `.agent_memo/` folder.
+- Create and manage a project-local `.agent-relaypad/` folder.
 - Create a review request for planning or implementation review.
 - Let each agent discover active review work.
 - Let each reviewing agent write feedback to its own response file.
@@ -51,7 +51,7 @@ should be easy to add later.
 The shared folder lives inside the project repo:
 
 ```text
-.agent_memo/
+.agent-relaypad/
   state.json
   .gitignore
   active/
@@ -68,7 +68,7 @@ The shared folder lives inside the project repo:
     REVIEW_ID/
 ```
 
-For version 1, `.agent_memo/active/` must contain at most one `REVIEW_ID`
+For version 1, `.agent-relaypad/active/` must contain at most one `REVIEW_ID`
 folder. The nested `REVIEW_ID` folder is still required so that version 2 can allow
 multiple active reviews without changing the thread structure.
 
@@ -112,7 +112,7 @@ The ID identifies the issue being reviewed and appears in `state.json`,
 
 ## State Files
 
-`.agent_memo/state.json` tracks project-level coordination state:
+`.agent-relaypad/state.json` tracks project-level coordination state:
 
 ```json
 {
@@ -287,7 +287,7 @@ source of truth.
 The coordinating agent:
 
 1. Finds the project root.
-2. Creates `.agent_memo/` if missing.
+2. Creates `.agent-relaypad/` if missing.
 3. Checks that no active review exists.
 4. Creates `active/REVIEW_ID/`.
 5. Writes `request.md`, `status.json`, and `state.json`.
@@ -297,7 +297,7 @@ The coordinating agent:
 If an active review already exists, the skill should show the current review
 ID and ask the user whether to read it, continue it, archive it, or stop.
 
-When creating or updating `.agent_memo/state.json`, the skill should use a
+When creating or updating `.agent-relaypad/state.json`, the skill should use a
 lightweight optimistic guard: read the current `updated_at`, prepare the new
 state, re-read `state.json`, and abort if `updated_at` changed before writing.
 This is not full locking, but it prevents common split-terminal races.
@@ -306,7 +306,7 @@ This is not full locking, but it prevents common split-terminal races.
 
 Any agent:
 
-1. Reads `.agent_memo/state.json`.
+1. Reads `.agent-relaypad/state.json`.
 2. If `active_review_id` is `null`, reports that there is no active review.
 3. Opens the active review folder.
 4. Reads `request.md`, `status.json`, `decisions.md` if present, and its own
@@ -329,7 +329,7 @@ A reviewing agent:
 The owner agent:
 
 1. Reads all response files.
-2. Applies changes to the plan or implementation outside `.agent_memo/`.
+2. Applies changes to the plan or implementation outside `.agent-relaypad/`.
 3. Creates or updates `decisions.md` with answers, accepted decisions, and a
    "Changes Since Last Round" section.
 4. Updates `status.json`.
@@ -339,7 +339,7 @@ The owner agent:
 `request.md` is immutable after creation. It is the original review snapshot.
 If the reviewed artifact changes, the owner records what changed in
 `decisions.md` and points reviewers to the updated source artifact outside
-`.agent_memo/`.
+`.agent-relaypad/`.
 
 ### Archive
 
@@ -351,7 +351,7 @@ When all required reviewers agree, the owner agent:
 4. Copies `active/REVIEW_ID/` to `archive/REVIEW_ID/`.
 5. Verifies the archive copy contains `request.md`, `status.json`,
    `final.md`, and `responses/`.
-6. Updates `.agent_memo/state.json` so `active_review_id` is `null` using the
+6. Updates `.agent-relaypad/state.json` so `active_review_id` is `null` using the
    optimistic `updated_at` guard.
 7. Deletes `active/REVIEW_ID/`.
 
@@ -371,11 +371,11 @@ exact command syntax.
 
 Useful intents:
 
-- "Create a shared memo for plan review."
-- "Check whether there is a memo for me."
-- "Review the active memo as agy."
+- "Create a shared relaypad review for this plan."
+- "Check whether there is a review for me."
+- "Review the active relaypad thread as agy."
 - "Read review comments and reconcile them."
-- "Archive the active memo."
+- "Archive the active relaypad thread."
 
 The skill should infer the current agent when possible. If it cannot infer the
 agent ID, it should ask the user for one.
@@ -392,7 +392,7 @@ The skill must not guess the current agent from the owner, the last response
 file edited, or the first missing reviewer.
 
 The skill should prefer concise summaries in chat while writing the durable
-details to `.agent_memo/`.
+details to `.agent-relaypad/`.
 
 ## Delivery Format
 
@@ -404,11 +404,11 @@ without requiring a server.
 
 ## Error Handling
 
-If `.agent_memo/` does not exist during a check, report that no shared memo has
+If `.agent-relaypad/` does not exist during a check, report that no shared relaypad has
 been initialized.
 
-If `.agent_memo/state.json` exists with `active_review_id: null`, report that
-the memo system is initialized and there is no active review.
+If `.agent-relaypad/state.json` exists with `active_review_id: null`, report that
+the relaypad system is initialized and there is no active review.
 
 If `state.json` points to a missing active review folder, report the broken
 state and recommend either repairing the path or clearing `active_review_id`.
@@ -423,7 +423,7 @@ the user whether to repair it.
 
 Use fixture directories to test the deterministic parts of the skill:
 
-- Initialize `.agent_memo/`.
+- Initialize `.agent-relaypad/`.
 - Create a planning review.
 - Prevent creating a second active review.
 - Check active review state.
@@ -443,7 +443,7 @@ temporary directories.
 
 - Multiple active reviews by allowing several folders under `active/`.
 - Per-review locks or optimistic update checks for shared state files.
-- Optional hooks that check for active memos when an agent starts.
+- Optional hooks that check for active relaypad reviews when an agent starts.
 - Agent-specific metadata for installed agents and preferred reviewer sets.
 - A compact status command that prints only pending action.
 - Integration with git branches or commit hashes for implementation reviews.
