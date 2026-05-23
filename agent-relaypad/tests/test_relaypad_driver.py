@@ -90,6 +90,35 @@ class RelaypadDriverTests(unittest.TestCase):
 
         self.assertEqual(command, ["agy", "--print", "--print-timeout", "300s", "--conversation", "conv-1"])
 
+    def test_build_cc_command_uses_exact_default_1m_model_without_resume_for_new_session(self):
+        command = relaypad_driver.build_cc_command(conversation_id=None, model=None)
+
+        self.assertEqual(
+            command,
+            [
+                "claude",
+                "--print",
+                "--output-format",
+                "json",
+                "--model",
+                "opus[1m]",
+                "--permission-mode",
+                "bypassPermissions",
+            ],
+        )
+
+    def test_build_cc_command_uses_resume_when_conversation_exists(self):
+        command = relaypad_driver.build_cc_command(conversation_id="session-1", model=None)
+
+        self.assertEqual(command[-2:], ["--resume", "session-1"])
+        self.assertIn("opus[1m]", command)
+
+    def test_build_cc_command_allows_model_override(self):
+        command = relaypad_driver.build_cc_command(conversation_id=None, model="sonnet[1m]")
+
+        self.assertIn("sonnet[1m]", command)
+        self.assertNotIn("opus[1m]", command)
+
     def test_dry_run_returns_command_and_stdin(self):
         with tempfile.TemporaryDirectory() as tmp:
             result = relaypad_driver.invoke_driver(
@@ -122,6 +151,84 @@ class RelaypadDriverTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "unsupported")
             self.assertEqual(calls, [])
+
+    def test_cc_dry_run_starts_new_session_without_conversation_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = relaypad_driver.invoke_driver(
+                root=Path(tmp),
+                driver="cc",
+                prompt="hello",
+                dry_run=True,
+            )
+
+            self.assertEqual(result["status"], "dry_run")
+            self.assertEqual(result["driver"], "cc")
+            self.assertNotIn("--resume", result["command"])
+            self.assertIn("opus[1m]", result["command"])
+            self.assertEqual(result["stdin"], "hello")
+
+    def test_cc_dry_run_uses_stored_session_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            relaypad_driver.write_runtime_metadata(
+                root,
+                "cc",
+                {"version": 1, "driver": "cc", "conversation_id": "stored-session"},
+            )
+
+            result = relaypad_driver.invoke_driver(root=root, driver="cc", prompt="hello", dry_run=True)
+
+            self.assertEqual(result["status"], "dry_run")
+            self.assertEqual(result["conversation_id"], "stored-session")
+            self.assertEqual(result["command"][-2:], ["--resume", "stored-session"])
+
+    def test_cc_invoke_passes_timeout_to_runner_and_writes_session_id_metadata(self):
+        class Completed:
+            returncode = 0
+            stdout = json.dumps({"session_id": "new-session", "result": "ok"})
+            stderr = ""
+
+        calls = []
+
+        def runner(command, **kwargs):
+            calls.append((command, kwargs))
+            return Completed()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = relaypad_driver.invoke_driver(
+                root=root,
+                driver="cc",
+                prompt="review please",
+                timeout=42,
+                runner=runner,
+            )
+
+            self.assertEqual(result["status"], "invoked")
+            self.assertEqual(result["conversation_id"], "new-session")
+            self.assertEqual(calls[0][1]["timeout"], 42)
+            metadata = json.loads((root / ".agent-relaypad" / "runtimes" / "cc.json").read_text(encoding="utf-8"))
+            self.assertEqual(metadata["conversation_id"], "new-session")
+            self.assertEqual(metadata["model"], "opus[1m]")
+
+    def test_cc_invalid_json_stdout_warns_and_does_not_write_new_metadata_without_session(self):
+        class Completed:
+            returncode = 0
+            stdout = "not json"
+            stderr = ""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = relaypad_driver.invoke_driver(
+                root=root,
+                driver="cc",
+                prompt="review please",
+                runner=lambda *args, **kwargs: Completed(),
+            )
+
+            self.assertEqual(result["status"], "invoked")
+            self.assertIn("warning", result)
+            self.assertFalse((root / ".agent-relaypad" / "runtimes" / "cc.json").exists())
 
     def test_invoke_driver_passes_prompt_to_runner_stdin_and_writes_metadata(self):
         class Completed:

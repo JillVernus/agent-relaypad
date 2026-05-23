@@ -7,6 +7,8 @@ from pathlib import Path
 
 
 VERSION = 1
+DEFAULT_CC_MODEL = "opus[1m]"
+CC_SESSION_WARNING = "Claude JSON output did not contain session_id; runtime metadata was not updated."
 
 
 def utc_now():
@@ -89,6 +91,22 @@ def build_agy_command(conversation_id, timeout):
     return ["agy", "--print", "--print-timeout", f"{int(timeout)}s", "--conversation", conversation_id]
 
 
+def build_cc_command(conversation_id=None, model=None):
+    command = [
+        "claude",
+        "--print",
+        "--output-format",
+        "json",
+        "--model",
+        model or DEFAULT_CC_MODEL,
+        "--permission-mode",
+        "bypassPermissions",
+    ]
+    if conversation_id:
+        command.extend(["--resume", conversation_id])
+    return command
+
+
 def unsupported_model_result(driver):
     return {
         "status": "unsupported",
@@ -98,14 +116,11 @@ def unsupported_model_result(driver):
     }
 
 
-def invoke_driver(root, driver, prompt, conversation_id=None, model=None, timeout=300, dry_run=False, runner=None):
-    root = Path(root)
-    if driver != "agy":
-        return {"status": "error", "driver": driver, "error": f"Unsupported driver: {driver}"}
+def invoke_agy(root, prompt, conversation_id=None, model=None, timeout=300, dry_run=False, runner=None):
     if model:
-        return unsupported_model_result(driver)
+        return unsupported_model_result("agy")
 
-    resolved = resolve_conversation_id(root, driver, explicit_id=conversation_id)
+    resolved = resolve_conversation_id(root, "agy", explicit_id=conversation_id)
     if resolved.get("status") != "resolved":
         return resolved
 
@@ -113,7 +128,7 @@ def invoke_driver(root, driver, prompt, conversation_id=None, model=None, timeou
     if dry_run:
         return {
             "status": "dry_run",
-            "driver": driver,
+            "driver": "agy",
             "command": command,
             "stdin": prompt,
         }
@@ -122,10 +137,10 @@ def invoke_driver(root, driver, prompt, conversation_id=None, model=None, timeou
     completed = run(command, input=prompt, text=True, capture_output=True, cwd=str(root))
     metadata_path = write_runtime_metadata(
         root,
-        driver,
+        "agy",
         {
             "version": VERSION,
-            "driver": driver,
+            "driver": "agy",
             "conversation_id": resolved["conversation_id"],
             "conversation_source": resolved["conversation_source"],
             "last_invoked_at": utc_now(),
@@ -134,13 +149,119 @@ def invoke_driver(root, driver, prompt, conversation_id=None, model=None, timeou
     )
     return {
         "status": "invoked",
-        "driver": driver,
+        "driver": "agy",
         "conversation_id": resolved["conversation_id"],
         "exit_code": completed.returncode,
         "stdout": completed.stdout,
         "stderr": completed.stderr,
         "metadata_path": str(metadata_path),
     }
+
+
+def resolve_optional_cc_conversation_id(root, explicit_id=None):
+    resolved = resolve_conversation_id(root, "cc", explicit_id=explicit_id)
+    if resolved.get("status") == "resolved":
+        return resolved
+    return {
+        "status": "new_session",
+        "conversation_id": None,
+        "conversation_source": "new_claude_session",
+    }
+
+
+def parse_cc_session_id(stdout):
+    try:
+        payload = json.loads(stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload.get("session_id")
+
+
+def invoke_cc(root, prompt, conversation_id=None, model=None, timeout=300, dry_run=False, runner=None):
+    resolved = resolve_optional_cc_conversation_id(root, explicit_id=conversation_id)
+    requested_model = model or DEFAULT_CC_MODEL
+    command = build_cc_command(resolved["conversation_id"], requested_model)
+
+    result = {
+        "status": "dry_run" if dry_run else "invoked",
+        "driver": "cc",
+        "command": command,
+        "stdin": prompt,
+    }
+    if resolved["conversation_id"]:
+        result["conversation_id"] = resolved["conversation_id"]
+
+    if dry_run:
+        return result
+
+    run = runner or subprocess.run
+    completed = run(
+        command,
+        input=prompt,
+        text=True,
+        capture_output=True,
+        cwd=str(root),
+        timeout=timeout,
+    )
+    session_id = parse_cc_session_id(completed.stdout)
+    result = {
+        "status": "invoked",
+        "driver": "cc",
+        "exit_code": completed.returncode,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+    }
+
+    metadata_session_id = session_id or resolved["conversation_id"]
+    if metadata_session_id:
+        metadata_path = write_runtime_metadata(
+            root,
+            "cc",
+            {
+                "version": VERSION,
+                "driver": "cc",
+                "conversation_id": metadata_session_id,
+                "conversation_source": "claude_json_result" if session_id else resolved["conversation_source"],
+                "last_invoked_at": utc_now(),
+                "last_exit_code": completed.returncode,
+                "model": requested_model,
+            },
+        )
+        result["conversation_id"] = metadata_session_id
+        result["metadata_path"] = str(metadata_path)
+
+    if not session_id:
+        result["warning"] = CC_SESSION_WARNING
+
+    return result
+
+
+def invoke_driver(root, driver, prompt, conversation_id=None, model=None, timeout=300, dry_run=False, runner=None):
+    root = Path(root)
+    if driver == "agy":
+        return invoke_agy(
+            root=root,
+            prompt=prompt,
+            conversation_id=conversation_id,
+            model=model,
+            timeout=timeout,
+            dry_run=dry_run,
+            runner=runner,
+        )
+    if driver == "cc":
+        return invoke_cc(
+            root=root,
+            prompt=prompt,
+            conversation_id=conversation_id,
+            model=model,
+            timeout=timeout,
+            dry_run=dry_run,
+            runner=runner,
+        )
+    else:
+        return {"status": "error", "driver": driver, "error": f"Unsupported driver: {driver}"}
 
 
 def main(argv=None):

@@ -159,6 +159,31 @@ The v1.1 Agy driver passes prompts through standard input and always uses
 `--conversation`; it does not use `--continue`. Agy model override is not
 supported unless Agy exposes a safe per-invocation model flag.
 
+Invoke Claude Code directly:
+
+```bash
+python agent-relaypad/scripts/relaypad_driver.py invoke \
+  --root /path/to/project \
+  --driver cc \
+  --prompt "Use agent-relaypad. Check the active review as cc and respond."
+```
+
+Preview the Claude Code command without invoking it:
+
+```bash
+python agent-relaypad/scripts/relaypad_driver.py invoke \
+  --root /path/to/project \
+  --driver cc \
+  --prompt "hello" \
+  --dry-run
+```
+
+The v1.2 Claude Code driver invokes the `claude` executable with
+`--print --output-format json`, passes prompts through standard input, and
+stores the returned Claude `session_id` as `.agent-relaypad/runtimes/cc.json`.
+By default it uses `opus[1m]`, not plain `opus`. Pass `--model` only when you
+want a specific Claude model for that invocation.
+
 ## Typical Agent Workflow
 
 1. Codex creates a review request after planning or implementation.

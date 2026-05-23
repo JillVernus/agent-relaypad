@@ -61,7 +61,15 @@ Never infer identity from owner, missing responses, or recently edited files.
 - Manual relaypad review remains the default workflow.
 - If the user asks Codex to invoke Agy directly, use `python agent-relaypad/scripts/relaypad_driver.py invoke`.
 - Prefer an explicit or stored Agy conversation ID.
-- Do not request an Agy model override in v1.1; the driver returns unsupported
+- If the user asks Codex to invoke Claude Code directly, use the same driver
+  script with `--driver cc`.
+- For Claude Code, prefer the stored Claude session ID. If none exists, the
+  driver starts a new Claude session and stores the returned `session_id`.
+- For Claude Code, use `--model` only when the user requests it; otherwise the
+  driver defaults to `opus[1m]`. Do not use plain `opus` as the default.
+- Do not use `claude --continue`; use the stored or explicit session ID through
+  the driver.
+- Do not request an Agy model override; the driver returns unsupported
   unless Agy exposes a safe per-invocation model flag.
 - After invoking, inspect `.agent-relaypad/` review state before summarizing
   success.
