@@ -190,6 +190,42 @@ class RelaypadDriverTests(unittest.TestCase):
             self.assertIsNone(result["conversation_id"])
             self.assertEqual(result["conversation_source"], "new_agy_session")
 
+    def test_resolve_conversation_id_new_session_bypasses_metadata_and_agy_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "project"
+            root.mkdir()
+            relaypad_driver.write_runtime_metadata(
+                root,
+                "agy",
+                {"version": 1, "driver": "agy", "conversation_id": "stored-1"},
+            )
+            cache = Path(tmp) / "last_conversations.json"
+            cache.write_text(json.dumps({str(root.resolve()): "cache-1"}), encoding="utf-8")
+
+            result = relaypad_driver.resolve_conversation_id(
+                root,
+                "agy",
+                agy_cache_path=cache,
+                new_session=True,
+            )
+
+            self.assertEqual(result["status"], "new_session")
+            self.assertIsNone(result["conversation_id"])
+            self.assertEqual(result["conversation_source"], "new_agy_session")
+
+    def test_resolve_conversation_id_new_session_bypasses_explicit_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = relaypad_driver.resolve_conversation_id(
+                Path(tmp),
+                "agy",
+                explicit_id="explicit-1",
+                new_session=True,
+            )
+
+            self.assertEqual(result["status"], "new_session")
+            self.assertIsNone(result["conversation_id"])
+            self.assertEqual(result["conversation_source"], "new_agy_session")
+
     def test_build_agy_command_uses_conversation_and_no_prompt_argument(self):
         command = relaypad_driver.build_agy_command("conv-1", timeout=300)
 
@@ -551,6 +587,53 @@ class RelaypadDriverTests(unittest.TestCase):
             self.assertEqual(launched_commands[0], ["agy", "--print", "--print-timeout", "1000s"])
             self.assertFalse((root / ".agent-relaypad" / "runtimes" / "agy.json").exists())
 
+    def test_invoke_many_new_session_omits_stored_resume_args_for_all_drivers(self):
+        events = []
+        launched_commands = []
+        stdouts = {
+            "cc": json.dumps({"session_id": "new-cc-session"}),
+            "codex": '{"type":"thread.started","thread_id":"new-codex-thread"}\n',
+            "agy": "agy ok",
+        }
+
+        def launcher(command, **kwargs):
+            driver = self.driver_from_command(command)
+            launched_commands.append((driver, command))
+            return self.fake_process_factory(events, stdout=stdouts[driver])(driver)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for driver, conversation_id in (
+                ("agy", "stored-agy"),
+                ("cc", "stored-cc"),
+                ("codex", "stored-codex"),
+            ):
+                relaypad_driver.write_runtime_metadata(
+                    root,
+                    driver,
+                    {"version": 1, "driver": driver, "conversation_id": conversation_id},
+                )
+
+            result = relaypad_driver.invoke_many(
+                root=root,
+                drivers=["agy", "cc", "codex"],
+                prompt="review",
+                launcher=launcher,
+                new_session=True,
+            )
+
+            commands_by_driver = {driver: command for driver, command in launched_commands}
+            self.assertEqual(result["status"], "completed")
+            self.assertNotIn("--conversation", commands_by_driver["agy"])
+            self.assertNotIn("--resume", commands_by_driver["cc"])
+            self.assertNotIn("resume", commands_by_driver["codex"])
+            cc_metadata = json.loads((root / ".agent-relaypad" / "runtimes" / "cc.json").read_text(encoding="utf-8"))
+            codex_metadata = json.loads(
+                (root / ".agent-relaypad" / "runtimes" / "codex.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(cc_metadata["conversation_id"], "new-cc-session")
+            self.assertEqual(codex_metadata["conversation_id"], "new-codex-thread")
+
     def test_invoke_many_persists_cc_session_id_metadata_after_completion(self):
         events = []
         FakeProcess = self.fake_process_factory(events, stdout=json.dumps({"session_id": "new-session"}))
@@ -705,6 +788,27 @@ class RelaypadDriverTests(unittest.TestCase):
             self.assertEqual(result["conversation_id"], "stored-session")
             self.assertEqual(result["command"][-2:], ["--resume", "stored-session"])
 
+    def test_cc_dry_run_new_session_ignores_stored_session_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            relaypad_driver.write_runtime_metadata(
+                root,
+                "cc",
+                {"version": 1, "driver": "cc", "conversation_id": "stored-session"},
+            )
+
+            result = relaypad_driver.invoke_driver(
+                root=root,
+                driver="cc",
+                prompt="hello",
+                dry_run=True,
+                new_session=True,
+            )
+
+            self.assertEqual(result["status"], "dry_run")
+            self.assertNotIn("conversation_id", result)
+            self.assertNotIn("--resume", result["command"])
+
     def test_cc_invoke_passes_timeout_to_runner_and_writes_session_id_metadata(self):
         class Completed:
             returncode = 0
@@ -828,6 +932,36 @@ class RelaypadDriverTests(unittest.TestCase):
             self.assertEqual(result, 0)
             self.assertEqual(payload["status"], "dry_run")
 
+    def test_cli_invoke_new_session_outputs_command_without_stored_resume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            relaypad_driver.write_runtime_metadata(
+                root,
+                "cc",
+                {"version": 1, "driver": "cc", "conversation_id": "stored-session"},
+            )
+
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                result = relaypad_driver.main(
+                    [
+                        "invoke",
+                        "--root",
+                        tmp,
+                        "--driver",
+                        "cc",
+                        "--prompt",
+                        "hello",
+                        "--new-session",
+                        "--dry-run",
+                    ]
+                )
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(result, 0)
+            self.assertEqual(payload["status"], "dry_run")
+            self.assertNotIn("--resume", payload["command"])
+
     def test_cli_invoke_many_outputs_json_from_prompt_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -876,6 +1010,36 @@ class RelaypadDriverTests(unittest.TestCase):
             self.assertEqual(payload["review_status"], "approved")
             self.assertIn("agy", payload["results"])
             self.assertIn("cc", payload["results"])
+
+    def test_cli_invoke_many_passes_new_session(self):
+        calls = []
+
+        def fake_invoke_many(**kwargs):
+            calls.append(kwargs)
+            return {"status": "completed", "timeout": kwargs["timeout"], "results": {}, "review_status": None}
+
+        original = relaypad_driver.invoke_many
+        relaypad_driver.invoke_many = fake_invoke_many
+        try:
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                result = relaypad_driver.main(
+                    [
+                        "invoke-many",
+                        "--root",
+                        ".",
+                        "--drivers",
+                        "cc,codex,agy",
+                        "--prompt",
+                        "review",
+                        "--new-session",
+                    ]
+                )
+        finally:
+            relaypad_driver.invoke_many = original
+
+        self.assertEqual(result, 0)
+        self.assertTrue(calls[0]["new_session"])
 
     def test_cli_invoke_many_returns_error_for_timeout(self):
         def fake_invoke_many(**kwargs):
@@ -1009,6 +1173,27 @@ class RelaypadDriverTests(unittest.TestCase):
             self.assertEqual(result["conversation_id"], "stored-thread")
             self.assertIn("resume", result["command"])
             self.assertIn("stored-thread", result["command"])
+
+    def test_codex_dry_run_new_session_ignores_stored_thread_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            relaypad_driver.write_runtime_metadata(
+                root,
+                "codex",
+                {"version": 1, "driver": "codex", "conversation_id": "stored-thread"},
+            )
+
+            result = relaypad_driver.invoke_driver(
+                root=root,
+                driver="codex",
+                prompt="hello",
+                dry_run=True,
+                new_session=True,
+            )
+
+            self.assertEqual(result["status"], "dry_run")
+            self.assertNotIn("conversation_id", result)
+            self.assertNotIn("resume", result["command"])
 
     def test_codex_dry_run_includes_model_flag_when_provided(self):
         with tempfile.TemporaryDirectory() as tmp:

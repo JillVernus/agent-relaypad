@@ -158,8 +158,14 @@ def default_agy_cache_path():
     return Path.home() / ".gemini" / "antigravity-cli" / "cache" / "last_conversations.json"
 
 
-def resolve_conversation_id(root, driver, explicit_id=None, agy_cache_path=None):
+def resolve_conversation_id(root, driver, explicit_id=None, agy_cache_path=None, new_session=False):
     root = Path(root)
+    if new_session:
+        return {
+            "status": "new_session",
+            "conversation_id": None,
+            "conversation_source": f"new_{driver}_session",
+        }
     if explicit_id:
         return {
             "status": "resolved",
@@ -252,11 +258,20 @@ def unsupported_model_result(driver):
     }
 
 
-def invoke_agy(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_TIMEOUT, dry_run=False, runner=None):
+def invoke_agy(
+    root,
+    prompt,
+    conversation_id=None,
+    model=None,
+    timeout=DEFAULT_TIMEOUT,
+    dry_run=False,
+    runner=None,
+    new_session=False,
+):
     if model:
         return unsupported_model_result("agy")
 
-    resolved = resolve_conversation_id(root, "agy", explicit_id=conversation_id)
+    resolved = resolve_conversation_id(root, "agy", explicit_id=conversation_id, new_session=new_session)
     if resolved.get("status") not in {"resolved", "new_session"}:
         return resolved
 
@@ -282,8 +297,8 @@ def invoke_agy(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_T
     }
 
 
-def resolve_optional_cc_conversation_id(root, explicit_id=None):
-    resolved = resolve_conversation_id(root, "cc", explicit_id=explicit_id)
+def resolve_optional_cc_conversation_id(root, explicit_id=None, new_session=False):
+    resolved = resolve_conversation_id(root, "cc", explicit_id=explicit_id, new_session=new_session)
     if resolved.get("status") == "resolved":
         return resolved
     return {
@@ -293,8 +308,8 @@ def resolve_optional_cc_conversation_id(root, explicit_id=None):
     }
 
 
-def resolve_optional_codex_thread_id(root, explicit_id=None):
-    resolved = resolve_conversation_id(root, "codex", explicit_id=explicit_id)
+def resolve_optional_codex_thread_id(root, explicit_id=None, new_session=False):
+    resolved = resolve_conversation_id(root, "codex", explicit_id=explicit_id, new_session=new_session)
     if resolved.get("status") == "resolved":
         return resolved
     return {
@@ -330,8 +345,17 @@ def parse_codex_thread_id(stdout):
     return None
 
 
-def invoke_cc(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_TIMEOUT, dry_run=False, runner=None):
-    resolved = resolve_optional_cc_conversation_id(root, explicit_id=conversation_id)
+def invoke_cc(
+    root,
+    prompt,
+    conversation_id=None,
+    model=None,
+    timeout=DEFAULT_TIMEOUT,
+    dry_run=False,
+    runner=None,
+    new_session=False,
+):
+    resolved = resolve_optional_cc_conversation_id(root, explicit_id=conversation_id, new_session=new_session)
     requested_model = model or DEFAULT_CC_MODEL
     command = build_cc_command(resolved["conversation_id"], requested_model)
     driver_prompt = build_driver_prompt(root, "cc", prompt)
@@ -390,8 +414,17 @@ def invoke_cc(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_TI
     return result
 
 
-def invoke_codex(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_TIMEOUT, dry_run=False, runner=None):
-    resolved = resolve_optional_codex_thread_id(root, explicit_id=conversation_id)
+def invoke_codex(
+    root,
+    prompt,
+    conversation_id=None,
+    model=None,
+    timeout=DEFAULT_TIMEOUT,
+    dry_run=False,
+    runner=None,
+    new_session=False,
+):
+    resolved = resolve_optional_codex_thread_id(root, explicit_id=conversation_id, new_session=new_session)
     command = build_codex_command(resolved["conversation_id"], model)
     driver_prompt = build_driver_prompt(root, "codex", prompt)
 
@@ -457,12 +490,12 @@ def parse_driver_list(text):
     return drivers
 
 
-def build_driver_invocation(root, driver, timeout=DEFAULT_TIMEOUT, conversation_id=None, model=None):
+def build_driver_invocation(root, driver, timeout=DEFAULT_TIMEOUT, conversation_id=None, model=None, new_session=False):
     root = Path(root)
     if driver == "agy":
         if model:
             return unsupported_model_result("agy")
-        resolved = resolve_conversation_id(root, "agy", explicit_id=conversation_id)
+        resolved = resolve_conversation_id(root, "agy", explicit_id=conversation_id, new_session=new_session)
         if resolved.get("status") not in {"resolved", "new_session"}:
             return resolved
         return {
@@ -473,7 +506,11 @@ def build_driver_invocation(root, driver, timeout=DEFAULT_TIMEOUT, conversation_
             "conversation_source": resolved["conversation_source"],
         }
     if driver == "cc":
-        resolved = resolve_optional_cc_conversation_id(root, explicit_id=conversation_id)
+        resolved = resolve_optional_cc_conversation_id(
+            root,
+            explicit_id=conversation_id,
+            new_session=new_session,
+        )
         requested_model = model or DEFAULT_CC_MODEL
         return {
             "status": "ready",
@@ -484,7 +521,11 @@ def build_driver_invocation(root, driver, timeout=DEFAULT_TIMEOUT, conversation_
             "model": requested_model,
         }
     if driver == "codex":
-        resolved = resolve_optional_codex_thread_id(root, explicit_id=conversation_id)
+        resolved = resolve_optional_codex_thread_id(
+            root,
+            explicit_id=conversation_id,
+            new_session=new_session,
+        )
         invocation = {
             "status": "ready",
             "driver": "codex",
@@ -600,6 +641,7 @@ def invoke_many(
     conversation_ids=None,
     model=None,
     launcher=None,
+    new_session=False,
 ):
     root = Path(root)
     launcher = launcher or subprocess.Popen
@@ -618,6 +660,7 @@ def invoke_many(
             timeout=timeout,
             conversation_id=conversation_ids.get(driver),
             model=model if driver in {"cc", "codex"} else None,
+            new_session=new_session,
         )
         if invocation.get("status") != "ready":
             return invocation
@@ -725,7 +768,17 @@ def invoke_many(
     }
 
 
-def invoke_driver(root, driver, prompt, conversation_id=None, model=None, timeout=DEFAULT_TIMEOUT, dry_run=False, runner=None):
+def invoke_driver(
+    root,
+    driver,
+    prompt,
+    conversation_id=None,
+    model=None,
+    timeout=DEFAULT_TIMEOUT,
+    dry_run=False,
+    runner=None,
+    new_session=False,
+):
     root = Path(root)
     if driver == "agy":
         return invoke_agy(
@@ -736,6 +789,7 @@ def invoke_driver(root, driver, prompt, conversation_id=None, model=None, timeou
             timeout=timeout,
             dry_run=dry_run,
             runner=runner,
+            new_session=new_session,
         )
     if driver == "cc":
         return invoke_cc(
@@ -746,6 +800,7 @@ def invoke_driver(root, driver, prompt, conversation_id=None, model=None, timeou
             timeout=timeout,
             dry_run=dry_run,
             runner=runner,
+            new_session=new_session,
         )
     if driver == "codex":
         return invoke_codex(
@@ -756,6 +811,7 @@ def invoke_driver(root, driver, prompt, conversation_id=None, model=None, timeou
             timeout=timeout,
             dry_run=dry_run,
             runner=runner,
+            new_session=new_session,
         )
     else:
         return {"status": "error", "driver": driver, "error": f"Unsupported driver: {driver}"}
@@ -772,6 +828,7 @@ def main(argv=None):
     p_invoke.add_argument("--conversation-id")
     p_invoke.add_argument("--model")
     p_invoke.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
+    p_invoke.add_argument("--new-session", action="store_true")
     p_invoke.add_argument("--dry-run", action="store_true")
     p_many = sub.add_parser("invoke-many")
     p_many.add_argument("--root", default=".")
@@ -780,6 +837,7 @@ def main(argv=None):
     p_many.add_argument("--prompt-file")
     p_many.add_argument("--model")
     p_many.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
+    p_many.add_argument("--new-session", action="store_true")
     args = parser.parse_args(argv)
     try:
         if args.command == "invoke":
@@ -792,6 +850,7 @@ def main(argv=None):
                 model=args.model,
                 timeout=args.timeout,
                 dry_run=args.dry_run,
+                new_session=args.new_session,
             )
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0 if result.get("status") in {"dry_run", "invoked"} else 1
@@ -803,6 +862,7 @@ def main(argv=None):
                 prompt=prompt,
                 timeout=args.timeout,
                 model=args.model,
+                new_session=args.new_session,
             )
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0 if result.get("status") == "completed" else 1

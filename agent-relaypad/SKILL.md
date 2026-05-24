@@ -106,6 +106,11 @@ Never infer identity from owner, missing responses, or recently edited files.
   directly, use the same driver script with `--driver codex`. The driver stores
   Codex's `thread_id` as `.agent-relaypad/runtimes/codex.json` and reuses it on
   the next call.
+- For unrelated tasks where resuming prior context is undesirable, pass
+  `--new-session`. It bypasses `--conversation-id` and stored runtime metadata
+  for `agy`, `cc`, and `codex`; for `agy`, it also bypasses the Antigravity
+  last-conversation cache. New session or thread ids reported by the runtime
+  are still stored afterward.
 - If the user asks to invoke multiple reviewers at the same time, use
   `python agent-relaypad/scripts/relaypad_driver.py invoke-many --drivers agy,cc`
   (any comma-separated subset of `agy,cc,codex` is valid).

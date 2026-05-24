@@ -184,6 +184,12 @@ stores the returned Claude `session_id` as `.agent-relaypad/runtimes/cc.json`.
 By default it uses `opus[1m]`, not plain `opus`. Pass `--model` only when you
 want a specific Claude model for that invocation.
 
+Pass `--new-session` with any driver when the next task should not resume a
+prior runtime conversation. This bypasses `--conversation-id` and
+`.agent-relaypad/runtimes/*.json` for `agy`, `cc`, and `codex`; for `agy`, it
+also bypasses the Antigravity last-conversation cache. If the runtime reports a
+new session or thread id, the driver stores it for later follow-up calls.
+
 Invoke Codex directly (for example from a CC or Agy owner):
 
 ```bash
@@ -209,8 +215,9 @@ input, and stores the returned Codex `thread_id` as the `conversation_id` field
 of `.agent-relaypad/runtimes/codex.json`. By default the model is unset and
 Codex uses its own configured default; pass `--model` only when you want a
 specific Codex model for that invocation. The driver mirrors the same workflow
-as the CC driver — same `--conversation-id`, `--timeout`, `--dry-run`, and
-`--model` flags — so any of `codex`, `cc`, or `agy` can drive any other.
+as the CC driver — same `--conversation-id`, `--timeout`, `--new-session`,
+`--dry-run`, and `--model` flags — so any of `codex`, `cc`, or `agy` can drive
+any other.
 
 Invoke multiple reviewers directly from the owner side:
 
@@ -219,6 +226,7 @@ python agent-relaypad/scripts/relaypad_driver.py invoke-many \
   --root /path/to/project \
   --drivers agy,cc \
   --prompt-file /tmp/review-prompt.md \
+  --new-session \
   --timeout 1000
 ```
 
