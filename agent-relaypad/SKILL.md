@@ -84,12 +84,18 @@ Never infer identity from owner, missing responses, or recently edited files.
 - If the user asks to invoke multiple reviewers at the same time, use
   `python agent-relaypad/scripts/relaypad_driver.py invoke-many --drivers agy,cc`
   (any comma-separated subset of `agy,cc,codex` is valid).
-- Direct owner-launched reviews wait silently on the original driver
-  subprocess until it exits or reaches the configured timeout. Do not send
-  periodic waiting updates, do not run relaypad polling loops, do not search the
-  filesystem for reviewer output, and do not re-invoke reviewers while the
-  subprocess is still running. If manual or external polling is needed later,
-  use a practical interval such as 60 seconds.
+- Direct owner-launched reviews apply the same wait policy for `codex`, `cc`,
+  and `agy` owners. The owner waits silently on the original driver subprocess
+  until it exits or reaches the configured timeout. Do not send periodic waiting
+  updates, do not run relaypad polling loops, do not search the filesystem for
+  reviewer output, do not re-invoke reviewers, and do not trigger additional
+  semantic/model turns merely to wait while the subprocess is still running. If
+  manual or external polling is needed later, use a practical interval such as
+  60 seconds.
+- Runtime billing behavior is outside prompt-level enforcement: host CLIs should
+  not re-enter model loops or emit billable model/API calls merely to wait for a
+  subprocess. Any required heartbeat while waiting should be non-model and
+  non-token-consuming.
 - During direct driver invocation, the driver adds absolute project and relaypad
   paths to the reviewer prompt. Reviewers must write to that absolute
   `responses/<agent-id>.md` path, not to a scratch workspace relaypad.

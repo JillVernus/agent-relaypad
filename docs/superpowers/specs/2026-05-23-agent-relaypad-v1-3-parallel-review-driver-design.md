@@ -106,9 +106,16 @@ If one reviewer times out:
 
 ## Timeouts and Polling
 
-Direct owner-launched reviews should wait silently on the original subprocess
-completion instead of using frequent relaypad polling or sending periodic
-waiting updates.
+Direct owner-launched reviews should apply the same wait policy for `codex`,
+`cc`, and `agy` owners. The owner waits silently on the original subprocess
+completion instead of using frequent relaypad polling, repeated status checks,
+reviewer re-invocation, periodic waiting updates, or additional semantic/model
+turns merely to wait.
+
+Prompt instructions can control owner-agent behavior, but host CLI billing
+behavior is a runtime concern. Host CLIs should avoid re-entering model loops or
+emitting billable model/API calls merely to wait for a subprocess. Any required
+heartbeat should be non-model and non-token-consuming.
 
 Default reviewer timeout:
 

@@ -226,8 +226,16 @@ The v1.3 parallel driver starts every requested reviewer before waiting for any
 one reviewer to finish. It passes the same prompt through each process's
 standard input, drains stdout and stderr while reviewers run, and reports each
 reviewer's completion, timeout, exit code, response file status, and parsed
-current-round response status. Direct owner-launched reviews wait on subprocess
-completion instead of frequent relaypad polling.
+current-round response status. Direct owner-launched reviews apply the same wait
+policy for `codex`, `cc`, and `agy` owners: wait on subprocess completion
+instead of frequent relaypad polling, repeated status checks, reviewer
+re-invocation, periodic waiting messages, or extra semantic/model turns merely
+to wait.
+
+Prompt instructions can control owner-agent behavior, but not every host
+runtime's billing behavior. Host CLIs should avoid re-entering model loops or
+emitting billable model/API calls merely to wait for a subprocess; any required
+heartbeat should be non-model and non-token-consuming.
 
 The default reviewer timeout is 1000 seconds. Agy also receives
 `--print-timeout 1000s`, and both Agy and Claude Code have Python process-level
