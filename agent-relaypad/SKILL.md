@@ -90,8 +90,11 @@ Never infer identity from owner, missing responses, or recently edited files.
   updates, do not run relaypad polling loops, do not search the filesystem for
   reviewer output, do not re-invoke reviewers, and do not trigger additional
   semantic/model turns merely to wait while the subprocess is still running. If
-  manual or external polling is needed later, use a practical interval such as
-  60 seconds.
+  manual or external polling is needed later, estimate the task complexity and
+  use a tiered initial wait before the first check, followed by a 2-3 minute poll interval:
+  - Small doc/spec review: 3 minutes default (range: 2-5 mins)
+  - Medium implementation: 7 minutes default (range: 5-10 mins)
+  - Large implementation: 15 minutes default (range: 15-20 mins)
 - Runtime billing behavior is outside prompt-level enforcement: host CLIs should
   not re-enter model loops or emit billable model/API calls merely to wait for a
   subprocess. Any required heartbeat while waiting should be non-model and
