@@ -184,6 +184,34 @@ stores the returned Claude `session_id` as `.agent-relaypad/runtimes/cc.json`.
 By default it uses `opus[1m]`, not plain `opus`. Pass `--model` only when you
 want a specific Claude model for that invocation.
 
+Invoke Codex directly (for example from a CC or Agy owner):
+
+```bash
+python agent-relaypad/scripts/relaypad_driver.py invoke \
+  --root /path/to/project \
+  --driver codex \
+  --prompt "Use agent-relaypad. Check the active review as codex and respond."
+```
+
+Preview the Codex command without invoking it:
+
+```bash
+python agent-relaypad/scripts/relaypad_driver.py invoke \
+  --root /path/to/project \
+  --driver codex \
+  --prompt "hello" \
+  --dry-run
+```
+
+The v1.4 Codex driver invokes `codex exec --json` with
+`--skip-git-repo-check -s workspace-write`, passes prompts through standard
+input, and stores the returned Codex `thread_id` as the `conversation_id` field
+of `.agent-relaypad/runtimes/codex.json`. By default the model is unset and
+Codex uses its own configured default; pass `--model` only when you want a
+specific Codex model for that invocation. The driver mirrors the same workflow
+as the CC driver — same `--conversation-id`, `--timeout`, `--dry-run`, and
+`--model` flags — so any of `codex`, `cc`, or `agy` can drive any other.
+
 Invoke multiple reviewers directly from the owner side:
 
 ```bash
@@ -210,12 +238,17 @@ review active for an explicit owner decision.
 
 ## Typical Agent Workflow
 
-1. Codex creates a review request after planning or implementation.
-2. You switch to Agy or Claude Code.
+Any of `codex`, `cc` (Claude Code), or `agy` (Antigravity CLI) can serve as the
+owner agent, with the other two acting as reviewers. The roles below show one
+direction; swap them for any of the supported agents.
+
+1. The owner agent creates a review request after planning or implementation.
+2. You switch to a reviewer agent (or the owner dispatches them through the
+   driver script).
 3. The reviewer checks the active review and writes feedback to its own response
    file.
-4. You switch back to Codex.
-5. Codex reconciles feedback, applies accepted changes to the real plan or
+4. You switch back to the owner agent.
+5. The owner reconciles feedback, applies accepted changes to the real plan or
    implementation, and either starts another round or archives the approved
    result.
 
@@ -320,6 +353,6 @@ PYTHONPATH=agent-relaypad/scripts python -m unittest discover -s agent-relaypad/
 Expected result:
 
 ```text
-Ran 89 tests
+Ran 111 tests
 OK
 ```

@@ -568,6 +568,68 @@ class RelaypadDriverTests(unittest.TestCase):
             self.assertEqual(metadata["conversation_id"], "new-session")
             self.assertEqual(metadata["model"], "opus[1m]")
 
+    def test_invoke_many_persists_codex_thread_id_metadata_after_completion(self):
+        events = []
+        codex_stdout = (
+            '{"type":"thread.started","thread_id":"thread-from-many"}\n'
+            '{"type":"item.completed"}\n'
+        )
+        FakeProcess = self.fake_process_factory(events, stdout=codex_stdout)
+
+        def launcher(command, **kwargs):
+            return FakeProcess(self.driver_from_command(command))
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            result = relaypad_driver.invoke_many(
+                root=root, drivers=["codex"], prompt="review", launcher=launcher
+            )
+
+            metadata = json.loads(
+                (root / ".agent-relaypad" / "runtimes" / "codex.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(result["status"], "completed")
+            self.assertEqual(metadata["conversation_id"], "thread-from-many")
+            self.assertEqual(metadata["driver"], "codex")
+            self.assertEqual(metadata["conversation_source"], "codex_thread_started")
+            self.assertEqual(result["results"]["codex"]["conversation_id"], "thread-from-many")
+            self.assertNotIn("warning", result["results"]["codex"])
+
+    def test_invoke_many_propagates_model_to_codex_driver(self):
+        events = []
+        stdouts = {
+            "cc": json.dumps({"session_id": "cc-session"}),
+            "codex": '{"type":"thread.started","thread_id":"codex-thread"}\n',
+        }
+        launched_commands = []
+
+        def launcher(command, **kwargs):
+            driver = self.driver_from_command(command)
+            launched_commands.append((driver, command))
+            return self.fake_process_factory(events, stdout=stdouts.get(driver, ""))(driver)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = relaypad_driver.invoke_many(
+                root=root,
+                drivers=["cc", "codex"],
+                prompt="review",
+                model="gpt-5",
+                launcher=launcher,
+            )
+
+            self.assertEqual(result["status"], "completed")
+            commands_by_driver = {driver: command for driver, command in launched_commands}
+            self.assertIn("-m", commands_by_driver["codex"])
+            self.assertIn("gpt-5", commands_by_driver["codex"])
+            self.assertIn("--model", commands_by_driver["cc"])
+            self.assertIn("gpt-5", commands_by_driver["cc"])
+            codex_metadata = json.loads(
+                (root / ".agent-relaypad" / "runtimes" / "codex.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(codex_metadata["model"], "gpt-5")
+
     def test_cli_rejects_missing_prompt_and_prompt_file(self):
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -841,6 +903,228 @@ class RelaypadDriverTests(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(result, 1)
         self.assertEqual(payload["status"], "timed_out")
+
+    def test_parse_codex_thread_id_returns_thread_id_from_thread_started_event(self):
+        stdout = (
+            '{"type":"thread.started","thread_id":"019e5867-189e-7e40-b512-ae1ffb3aa304"}\n'
+            '{"type":"turn.started"}\n'
+            '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"ok"}}\n'
+            '{"type":"turn.completed","usage":{"input_tokens":10}}\n'
+        )
+
+        thread_id = relaypad_driver.parse_codex_thread_id(stdout)
+
+        self.assertEqual(thread_id, "019e5867-189e-7e40-b512-ae1ffb3aa304")
+
+    def test_parse_codex_thread_id_returns_none_when_no_thread_started_event(self):
+        stdout = (
+            '{"type":"turn.started"}\n'
+            '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"ok"}}\n'
+        )
+
+        self.assertIsNone(relaypad_driver.parse_codex_thread_id(stdout))
+
+    def test_parse_codex_thread_id_skips_malformed_lines(self):
+        stdout = (
+            "not json line\n"
+            "null\n"
+            '{"type":"thread.started","thread_id":"abc-123"}\n'
+            "another bad line\n"
+        )
+
+        self.assertEqual(relaypad_driver.parse_codex_thread_id(stdout), "abc-123")
+
+    def test_parse_codex_thread_id_returns_none_for_empty_stdout(self):
+        self.assertIsNone(relaypad_driver.parse_codex_thread_id(""))
+
+    def test_build_codex_command_uses_exec_json_for_new_session(self):
+        command = relaypad_driver.build_codex_command(thread_id=None, model=None)
+
+        self.assertEqual(
+            command,
+            ["codex", "exec", "--json", "--skip-git-repo-check", "-s", "workspace-write", "-"],
+        )
+
+    def test_build_codex_command_uses_exec_resume_when_thread_id_exists(self):
+        command = relaypad_driver.build_codex_command(thread_id="thread-1", model=None)
+
+        self.assertEqual(
+            command,
+            [
+                "codex",
+                "exec",
+                "resume",
+                "thread-1",
+                "--json",
+                "--skip-git-repo-check",
+                "-s",
+                "workspace-write",
+                "-",
+            ],
+        )
+
+    def test_build_codex_command_includes_model_when_provided(self):
+        command = relaypad_driver.build_codex_command(thread_id=None, model="gpt-5")
+
+        self.assertIn("-m", command)
+        self.assertIn("gpt-5", command)
+        self.assertEqual(command[-1], "-")
+
+    def test_parse_driver_list_accepts_codex_alone_and_in_mix(self):
+        self.assertEqual(relaypad_driver.parse_driver_list("codex"), ["codex"])
+        self.assertEqual(
+            relaypad_driver.parse_driver_list("codex,cc,agy"),
+            ["codex", "cc", "agy"],
+        )
+
+    def test_codex_dry_run_starts_new_session_without_thread_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = relaypad_driver.invoke_driver(
+                root=Path(tmp),
+                driver="codex",
+                prompt="hello",
+                dry_run=True,
+            )
+
+            self.assertEqual(result["status"], "dry_run")
+            self.assertEqual(result["driver"], "codex")
+            self.assertNotIn("resume", result["command"])
+            self.assertEqual(result["stdin"], "hello")
+            self.assertEqual(result["command"][-1], "-")
+
+    def test_codex_dry_run_uses_stored_thread_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            relaypad_driver.write_runtime_metadata(
+                root,
+                "codex",
+                {"version": 1, "driver": "codex", "conversation_id": "stored-thread"},
+            )
+
+            result = relaypad_driver.invoke_driver(
+                root=root, driver="codex", prompt="hello", dry_run=True
+            )
+
+            self.assertEqual(result["status"], "dry_run")
+            self.assertEqual(result["conversation_id"], "stored-thread")
+            self.assertIn("resume", result["command"])
+            self.assertIn("stored-thread", result["command"])
+
+    def test_codex_dry_run_includes_model_flag_when_provided(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = relaypad_driver.invoke_driver(
+                root=Path(tmp),
+                driver="codex",
+                prompt="hello",
+                model="gpt-5",
+                dry_run=True,
+            )
+
+            self.assertEqual(result["status"], "dry_run")
+            self.assertIn("-m", result["command"])
+            self.assertIn("gpt-5", result["command"])
+
+    def test_codex_invoke_writes_thread_id_metadata_from_jsonl(self):
+        class Completed:
+            returncode = 0
+            stdout = (
+                '{"type":"thread.started","thread_id":"new-thread-7"}\n'
+                '{"type":"item.completed"}\n'
+            )
+            stderr = ""
+
+        calls = []
+
+        def runner(command, **kwargs):
+            calls.append((command, kwargs))
+            return Completed()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = relaypad_driver.invoke_driver(
+                root=root,
+                driver="codex",
+                prompt="review please",
+                timeout=42,
+                runner=runner,
+            )
+
+            self.assertEqual(result["status"], "invoked")
+            self.assertEqual(result["conversation_id"], "new-thread-7")
+            self.assertEqual(calls[0][1]["timeout"], 42)
+            metadata = json.loads(
+                (root / ".agent-relaypad" / "runtimes" / "codex.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(metadata["conversation_id"], "new-thread-7")
+            self.assertEqual(metadata["driver"], "codex")
+            self.assertEqual(metadata["conversation_source"], "codex_thread_started")
+            self.assertNotIn("model", metadata)
+            self.assertNotIn("warning", result)
+
+    def test_codex_invoke_warns_when_thread_started_missing_and_skips_metadata(self):
+        class Completed:
+            returncode = 0
+            stdout = '{"type":"item.completed"}\n'
+            stderr = ""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = relaypad_driver.invoke_driver(
+                root=root,
+                driver="codex",
+                prompt="review please",
+                runner=lambda *args, **kwargs: Completed(),
+            )
+
+            self.assertEqual(result["status"], "invoked")
+            self.assertIn("warning", result)
+            self.assertEqual(result["warning"], relaypad_driver.CODEX_THREAD_WARNING)
+            self.assertFalse((root / ".agent-relaypad" / "runtimes" / "codex.json").exists())
+
+    def test_codex_invoke_persists_model_when_provided(self):
+        class Completed:
+            returncode = 0
+            stdout = '{"type":"thread.started","thread_id":"thread-with-model"}\n'
+            stderr = ""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = relaypad_driver.invoke_driver(
+                root=root,
+                driver="codex",
+                prompt="review please",
+                model="gpt-5",
+                runner=lambda *args, **kwargs: Completed(),
+            )
+
+            self.assertEqual(result["status"], "invoked")
+            metadata = json.loads(
+                (root / ".agent-relaypad" / "runtimes" / "codex.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(metadata["model"], "gpt-5")
+
+    def test_codex_invoke_passes_prompt_to_runner_stdin(self):
+        class Completed:
+            returncode = 0
+            stdout = '{"type":"thread.started","thread_id":"t-abc"}\n'
+            stderr = ""
+
+        calls = []
+
+        def runner(command, **kwargs):
+            calls.append((command, kwargs))
+            return Completed()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            relaypad_driver.invoke_driver(
+                root=Path(tmp),
+                driver="codex",
+                prompt="please review",
+                runner=runner,
+            )
+
+            self.assertEqual(calls[0][1]["input"], "please review")
+            self.assertEqual(calls[0][0][-1], "-")
 
 
 if __name__ == "__main__":

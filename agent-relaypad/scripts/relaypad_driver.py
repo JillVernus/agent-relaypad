@@ -12,7 +12,8 @@ VERSION = 1
 DEFAULT_TIMEOUT = 1000
 DEFAULT_CC_MODEL = "opus[1m]"
 CC_SESSION_WARNING = "Claude JSON output did not contain session_id; runtime metadata was not updated."
-SUPPORTED_DRIVERS = {"agy", "cc"}
+CODEX_THREAD_WARNING = "Codex JSONL output did not contain thread.started; runtime metadata was not updated."
+SUPPORTED_DRIVERS = {"agy", "cc", "codex"}
 
 
 def utc_now():
@@ -231,6 +232,17 @@ def build_cc_command(conversation_id=None, model=None):
     return command
 
 
+def build_codex_command(thread_id=None, model=None):
+    command = ["codex", "exec"]
+    if thread_id:
+        command.extend(["resume", thread_id])
+    command.extend(["--json", "--skip-git-repo-check", "-s", "workspace-write"])
+    if model:
+        command.extend(["-m", model])
+    command.append("-")
+    return command
+
+
 def unsupported_model_result(driver):
     return {
         "status": "unsupported",
@@ -281,6 +293,17 @@ def resolve_optional_cc_conversation_id(root, explicit_id=None):
     }
 
 
+def resolve_optional_codex_thread_id(root, explicit_id=None):
+    resolved = resolve_conversation_id(root, "codex", explicit_id=explicit_id)
+    if resolved.get("status") == "resolved":
+        return resolved
+    return {
+        "status": "new_session",
+        "conversation_id": None,
+        "conversation_source": "new_codex_session",
+    }
+
+
 def parse_cc_session_id(stdout):
     try:
         payload = json.loads(stdout)
@@ -289,6 +312,22 @@ def parse_cc_session_id(stdout):
     if not isinstance(payload, dict):
         return None
     return payload.get("session_id")
+
+
+def parse_codex_thread_id(stdout):
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and payload.get("type") == "thread.started":
+            thread_id = payload.get("thread_id")
+            if thread_id:
+                return thread_id
+    return None
 
 
 def invoke_cc(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_TIMEOUT, dry_run=False, runner=None):
@@ -351,6 +390,63 @@ def invoke_cc(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_TI
     return result
 
 
+def invoke_codex(root, prompt, conversation_id=None, model=None, timeout=DEFAULT_TIMEOUT, dry_run=False, runner=None):
+    resolved = resolve_optional_codex_thread_id(root, explicit_id=conversation_id)
+    command = build_codex_command(resolved["conversation_id"], model)
+    driver_prompt = build_driver_prompt(root, "codex", prompt)
+
+    result = {
+        "status": "dry_run" if dry_run else "invoked",
+        "driver": "codex",
+        "command": command,
+        "stdin": driver_prompt,
+    }
+    if resolved["conversation_id"]:
+        result["conversation_id"] = resolved["conversation_id"]
+
+    if dry_run:
+        return result
+
+    run = runner or subprocess.run
+    completed = run(
+        command,
+        input=driver_prompt,
+        text=True,
+        capture_output=True,
+        cwd=str(root),
+        timeout=timeout,
+    )
+    thread_id = parse_codex_thread_id(completed.stdout)
+    result = {
+        "status": "invoked",
+        "driver": "codex",
+        "exit_code": completed.returncode,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+    }
+
+    metadata_thread_id = thread_id or resolved["conversation_id"]
+    if metadata_thread_id:
+        metadata_payload = {
+            "version": VERSION,
+            "driver": "codex",
+            "conversation_id": metadata_thread_id,
+            "conversation_source": "codex_thread_started" if thread_id else resolved["conversation_source"],
+            "last_invoked_at": utc_now(),
+            "last_exit_code": completed.returncode,
+        }
+        if model:
+            metadata_payload["model"] = model
+        metadata_path = write_runtime_metadata(root, "codex", metadata_payload)
+        result["conversation_id"] = metadata_thread_id
+        result["metadata_path"] = str(metadata_path)
+
+    if not thread_id:
+        result["warning"] = CODEX_THREAD_WARNING
+
+    return result
+
+
 def parse_driver_list(text):
     drivers = [driver.strip() for driver in str(text).split(",") if driver.strip()]
     if not drivers:
@@ -387,6 +483,18 @@ def build_driver_invocation(root, driver, timeout=DEFAULT_TIMEOUT, conversation_
             "conversation_source": resolved["conversation_source"],
             "model": requested_model,
         }
+    if driver == "codex":
+        resolved = resolve_optional_codex_thread_id(root, explicit_id=conversation_id)
+        invocation = {
+            "status": "ready",
+            "driver": "codex",
+            "command": build_codex_command(resolved["conversation_id"], model),
+            "conversation_id": resolved["conversation_id"],
+            "conversation_source": resolved["conversation_source"],
+        }
+        if model:
+            invocation["model"] = model
+        return invocation
     return {"status": "error", "driver": driver, "error": f"Unsupported driver: {driver}"}
 
 
@@ -448,6 +556,23 @@ def persist_completed_metadata(root, invocation, stdout, exit_code):
         metadata_path = metadata.get("metadata_path")
         return Path(metadata_path) if metadata_path else None
 
+    if driver == "codex":
+        thread_id = parse_codex_thread_id(stdout)
+        metadata_thread_id = thread_id or invocation.get("conversation_id")
+        if not metadata_thread_id:
+            return None
+        payload = {
+            "version": VERSION,
+            "driver": "codex",
+            "conversation_id": metadata_thread_id,
+            "conversation_source": "codex_thread_started" if thread_id else invocation["conversation_source"],
+            "last_invoked_at": utc_now(),
+            "last_exit_code": exit_code,
+        }
+        if invocation.get("model"):
+            payload["model"] = invocation["model"]
+        return write_runtime_metadata(root, "codex", payload)
+
     session_id = parse_cc_session_id(stdout)
     metadata_session_id = session_id or invocation.get("conversation_id")
     if not metadata_session_id:
@@ -492,7 +617,7 @@ def invoke_many(
             driver,
             timeout=timeout,
             conversation_id=conversation_ids.get(driver),
-            model=model if driver == "cc" else None,
+            model=model if driver in {"cc", "codex"} else None,
         )
         if invocation.get("status") != "ready":
             return invocation
@@ -582,6 +707,13 @@ def invoke_many(
                     result["conversation_id"] = metadata_session_id
                 if not session_id:
                     result["warning"] = CC_SESSION_WARNING
+            elif entry["driver"] == "codex":
+                thread_id = parse_codex_thread_id(stdout)
+                metadata_thread_id = thread_id or entry["invocation"].get("conversation_id")
+                if metadata_thread_id:
+                    result["conversation_id"] = metadata_thread_id
+                if not thread_id:
+                    result["warning"] = CODEX_THREAD_WARNING
         results[entry["driver"]] = result
 
     overall_status = "timed_out" if any(result["status"] == "timed_out" for result in results.values()) else "completed"
@@ -607,6 +739,16 @@ def invoke_driver(root, driver, prompt, conversation_id=None, model=None, timeou
         )
     if driver == "cc":
         return invoke_cc(
+            root=root,
+            prompt=prompt,
+            conversation_id=conversation_id,
+            model=model,
+            timeout=timeout,
+            dry_run=dry_run,
+            runner=runner,
+        )
+    if driver == "codex":
+        return invoke_codex(
             root=root,
             prompt=prompt,
             conversation_id=conversation_id,

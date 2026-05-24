@@ -137,6 +137,7 @@ python ~/.codex/skills/agent-relaypad/scripts/relaypad.py --help
 python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver agy --prompt "hello" --dry-run
 python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver agy --prompt "hello" --conversation-id test-conversation --dry-run
 python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver cc --prompt "hello" --dry-run
+python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver codex --prompt "hello" --dry-run
 ```
 
 Expected command list:
@@ -170,6 +171,7 @@ python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad.py" --help
 python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad_driver.py" invoke --root . --driver agy --prompt "hello" --dry-run
 python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad_driver.py" invoke --root . --driver agy --prompt "hello" --conversation-id test-conversation --dry-run
 python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad_driver.py" invoke --root . --driver cc --prompt "hello" --dry-run
+python "$TARGET_SKILLS_DIR/agent-relaypad/scripts/relaypad_driver.py" invoke --root . --driver codex --prompt "hello" --dry-run
 ```
 
 Restart or reload that agent after update.
@@ -199,7 +201,7 @@ PYTHONPATH=agent-relaypad/scripts python -m unittest discover -s agent-relaypad/
 Expected:
 
 ```text
-Ran 94 tests
+Ran 111 tests
 OK
 ```
 
@@ -212,6 +214,7 @@ python ~/.codex/skills/agent-relaypad/scripts/relaypad.py --help
 python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver agy --prompt "hello" --dry-run
 python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver agy --prompt "hello" --conversation-id test-conversation --dry-run
 python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver cc --prompt "hello" --dry-run
+python ~/.codex/skills/agent-relaypad/scripts/relaypad_driver.py invoke --root . --driver codex --prompt "hello" --dry-run
 ```
 
 For another agent, replace `~/.codex/skills` with that agent's skills path.

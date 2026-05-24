@@ -34,16 +34,16 @@ Never infer identity from owner, missing responses, or recently edited files.
 
 - Initialize relaypad state:
   `python agent-relaypad/scripts/relaypad.py init --root .`
-- Create review:
-  `python agent-relaypad/scripts/relaypad.py create --root . --owner codex --phase planning --topic "auth flow" --reviewers agy,cc --artifact-file docs/plan.md`
+- Create review (any of `codex`, `cc`, `agy`, or a custom agent id is valid as `--owner`):
+  `python agent-relaypad/scripts/relaypad.py create --root . --owner <your-agent-id> --phase planning --topic "auth flow" --reviewers agy,cc --artifact-file docs/plan.md`
 - Check review:
   `python agent-relaypad/scripts/relaypad.py check --root . --agent agy`
 - Write feedback:
   `python agent-relaypad/scripts/relaypad.py respond --root . --agent agy --status approved --body-file /tmp/review.md`
 - Reconcile feedback:
-  `python agent-relaypad/scripts/relaypad.py reconcile --root . --owner codex --decisions-file /tmp/decisions.md [--next-round]`
+  `python agent-relaypad/scripts/relaypad.py reconcile --root . --owner <your-agent-id> --decisions-file /tmp/decisions.md [--next-round]`
 - Archive review:
-  `python agent-relaypad/scripts/relaypad.py archive --root . --owner codex --final-file /tmp/final.md`
+  `python agent-relaypad/scripts/relaypad.py archive --root . --owner <your-agent-id> --final-file /tmp/final.md`
 
 ## Owner Finalization
 
@@ -68,13 +68,22 @@ Never infer identity from owner, missing responses, or recently edited files.
 ## Optional Driver Invocation
 
 - Manual relaypad review remains the default workflow.
+- The optional driver supports `agy`, `cc`, and `codex`. Any of these agents can
+  own the review and dispatch any other as a reviewer. Same-model review (for
+  example a `cc` owner driving a `cc` reviewer) is permitted but loses
+  cross-model diversity; prefer different agents when possible.
 - If the user asks Codex to invoke Agy directly, use `python agent-relaypad/scripts/relaypad_driver.py invoke`.
 - Prefer an explicit or stored Agy conversation ID. If none exists, invoke Agy
   without `--conversation` so it starts a new session.
 - If the user asks Codex to invoke Claude Code directly, use the same driver
   script with `--driver cc`.
-- If the user asks Codex to invoke Agy and Claude Code at the same time, use
-  `python agent-relaypad/scripts/relaypad_driver.py invoke-many --drivers agy,cc`.
+- If the user (typically running CC or Agy as owner) asks to invoke Codex
+  directly, use the same driver script with `--driver codex`. The driver stores
+  Codex's `thread_id` as `.agent-relaypad/runtimes/codex.json` and reuses it on
+  the next call.
+- If the user asks to invoke multiple reviewers at the same time, use
+  `python agent-relaypad/scripts/relaypad_driver.py invoke-many --drivers agy,cc`
+  (any comma-separated subset of `agy,cc,codex` is valid).
 - Direct owner-launched reviews wait silently on the original driver
   subprocess until it exits or reaches the configured timeout. Do not send
   periodic waiting updates, do not run relaypad polling loops, do not search the
@@ -95,6 +104,12 @@ Never infer identity from owner, missing responses, or recently edited files.
   driver defaults to `opus[1m]`. Do not use plain `opus` as the default.
 - Do not use `claude --continue`; use the stored or explicit session ID through
   the driver.
+- For Codex, prefer the stored Codex `thread_id`. If none exists, the driver
+  starts a new Codex thread and stores the returned `thread_id` (saved as
+  `conversation_id` in `runtimes/codex.json`).
+- For Codex, default model is unset (uses the user's Codex CLI configuration).
+  Pass `--model` only when the user requests a specific Codex model for that
+  invocation.
 - Do not request an Agy model override; the driver returns unsupported
   unless Agy exposes a safe per-invocation model flag.
 - After invoking, inspect `.agent-relaypad/` review state before summarizing
