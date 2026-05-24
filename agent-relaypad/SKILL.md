@@ -1,6 +1,6 @@
 ---
 name: agent-relaypad
-description: Use when coordinating plan reviews or implementation reviews between Codex, Claude Code, Antigravity CLI, or other agents through a project-local .agent-relaypad folder.
+description: Use when coordinating plan reviews or implementation reviews between Codex, Claude Code, Antigravity CLI, or other agents through a project-local .agent-relaypad folder, or when installing/updating the agent-relaypad skill.
 ---
 
 # Agent Relaypad
@@ -44,6 +44,31 @@ Never infer identity from owner, missing responses, or recently edited files.
   `python agent-relaypad/scripts/relaypad.py reconcile --root . --owner <your-agent-id> --decisions-file /tmp/decisions.md [--next-round]`
 - Archive review:
   `python agent-relaypad/scripts/relaypad.py archive --root . --owner <your-agent-id> --final-file /tmp/final.md`
+
+## Install Or Update This Skill
+
+- If this repo has `INSTALL.md`, read it first and follow it as the source of
+  truth.
+- Install or update the whole `agent-relaypad/` folder, not only `SKILL.md`.
+  Include `agents/openai.yaml`, `scripts/relaypad.py`,
+  `scripts/relaypad_driver.py`, and the tests.
+- Install into the current runtime's user skills directory. Known Codex target:
+  `~/.codex/skills/agent-relaypad/`. For Claude Code, Antigravity CLI, or an
+  unknown runtime, identify the configured user skills directory first; if it
+  cannot be identified confidently, ask:
+  `What user skills directory should I use for this agent runtime?`
+- Keep the installed folder name exactly `agent-relaypad`.
+- During migration, it is safe to remove only the old installed
+  `agent-memo-review/` skill folder. Do not delete project-local
+  `.agent-relaypad/` folders.
+- For a Codex install or update from this repo:
+  `mkdir -p ~/.codex/skills && rm -rf ~/.codex/skills/agent-relaypad ~/.codex/skills/agent-memo-review && cp -R agent-relaypad ~/.codex/skills/`
+- After copying, verify the installed helper:
+  `python ~/.codex/skills/agent-relaypad/scripts/relaypad.py --help`
+- For non-Codex runtimes, replace `~/.codex/skills` with that runtime's user
+  skills directory and run the same helper verification.
+- If the runtime has a marketplace, plugin cache, refresh, restart, or reload
+  step for skills, run that normal refresh after copying.
 
 ## Owner Finalization
 

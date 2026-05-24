@@ -1,6 +1,6 @@
 interface:
   display_name: "Agent Relaypad"
-  short_description: "Coordinate cross-agent plan and code reviews"
-  default_prompt: "Use $agent-relaypad to check or create a shared cross-agent review."
+  short_description: "Coordinate cross-agent reviews and skill installs"
+  default_prompt: "Use $agent-relaypad to check, create, install, or update a shared cross-agent review workflow."
 policy:
   allow_implicit_invocation: true
